@@ -1,0 +1,56 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ============================================================
+         设计令牌：直接取自原版 frontend/index.html 的 :root
+         改这里一处，全局跟着变。
+         ============================================================ -->
+
+    <!-- 底色 / 面板 -->
+    <Color x:Key="BgColor">#ECECEB</Color>
+    <Color x:Key="PanelColor">#F6F6F4</Color>
+    <Color x:Key="Panel2Color">#FFFFFF</Color>
+    <Color x:Key="LineColor">#C9C9C4</Color>
+
+    <!-- 深炭（数据块、图标方块） -->
+    <Color x:Key="DarkColor">#3A3A38</Color>
+    <Color x:Key="Dark2Color">#2C2C2A</Color>
+    <Color x:Key="Dark3Color">#575754</Color>
+
+    <!-- 强调色 -->
+    <Color x:Key="YellowColor">#FFDF00</Color>
+    <Color x:Key="YellowArcColor">#FFE23D</Color>
+    <Color x:Key="YellowRailColor">#F2EDC4</Color>
+    <Color x:Key="YellowBarColor">#DED24E</Color>
+    <Color x:Key="BlueColor">#3BA3DC</Color>
+    <Color x:Key="OrangeColor">#DFA32A</Color>
+    <Color x:Key="RedColor">#E04A3A</Color>
+    <Color x:Key="GreenColor">#3BB36B</Color>
+
+    <!-- 文字 -->
+    <Color x:Key="TextColor">#4A4A46</Color>
+    <Color x:Key="TextDimColor">#8A8A84</Color>
+
+    <!-- 画刷 -->
+    <SolidColorBrush x:Key="BgBrush"        Color="{StaticResource BgColor}" />
+    <SolidColorBrush x:Key="PanelBrush"     Color="{StaticResource PanelColor}" />
+    <SolidColorBrush x:Key="Panel2Brush"    Color="{StaticResource Panel2Color}" />
+    <SolidColorBrush x:Key="LineBrush"      Color="{StaticResource LineColor}" />
+    <SolidColorBrush x:Key="DarkBrush"      Color="{StaticResource DarkColor}" />
+    <SolidColorBrush x:Key="Dark2Brush"     Color="{StaticResource Dark2Color}" />
+    <SolidColorBrush x:Key="Dark3Brush"     Color="{StaticResource Dark3Color}" />
+    <SolidColorBrush x:Key="YellowBrush"    Color="{StaticResource YellowColor}" />
+    <SolidColorBrush x:Key="YellowArcBrush" Color="{StaticResource YellowArcColor}" />
+    <SolidColorBrush x:Key="YellowRailBrush" Color="{StaticResource YellowRailColor}" />
+    <SolidColorBrush x:Key="YellowBarBrush" Color="{StaticResource YellowBarColor}" />
+    <SolidColorBrush x:Key="BlueBrush"      Color="{StaticResource BlueColor}" />
+    <SolidColorBrush x:Key="OrangeBrush"    Color="{StaticResource OrangeColor}" />
+    <SolidColorBrush x:Key="RedBrush"       Color="{StaticResource RedColor}" />
+    <SolidColorBrush x:Key="GreenBrush"     Color="{StaticResource GreenColor}" />
+    <SolidColorBrush x:Key="TextBrush"      Color="{StaticResource TextColor}" />
+    <SolidColorBrush x:Key="TextDimBrush"   Color="{StaticResource TextDimColor}" />
+
+    <!-- 字体：与原版一致的中英文混排栈 -->
+    <FontFamily x:Key="UiFont">Microsoft YaHei, Segoe UI, PingFang SC</FontFamily>
+
+</ResourceDictionary>
