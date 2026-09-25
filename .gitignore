@@ -13,3 +13,7 @@ reference/
 
 # 本地覆盖配置
 *.local.json
+
+# Go 服务端构建产物与运行日志
+server-go/*.exe
+server-go/*.log
