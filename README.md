@@ -44,7 +44,15 @@ pip install psutil
 
 # 启动（--token 为空则不校验口令，仅建议本地调试时使用）
 python collector_server.py --port 8898 --token <共享口令>
+
+# 想顺带盯一个服务的进程 / 端口 / 计划任务，加这四个参数（全部可选）：
+python collector_server.py --port 8898 --token <共享口令> `
+  --watch-name 麦麦 --watch-procs maibot,napcat `
+  --watch-ports 6099,7998,8765 `
+  --watch-tasks MaiBotStart,MaiBotMCP,MaiBot_Daily_Backup
 ```
+
+四个 `--watch-*` 参数都不给时，这一块完全不参与采集，客户端只显示机器资源。
 
 放行防火墙入站 TCP：
 
@@ -57,7 +65,8 @@ New-NetFirewallRule -DisplayName 'ENF Monitor 8898' -Direction Inbound -Protocol
 ```powershell
 $dir = 'C:\path\to\collector'
 $a = New-ScheduledTaskAction -Execute 'C:\path\to\python.exe' `
-     -Argument "$dir\collector_server.py --port 8898 --token <共享口令>" -WorkingDirectory $dir
+     -Argument "$dir\collector_server.py --port 8898 --token <共享口令> --watch-name 麦麦 --watch-procs maibot,napcat --watch-ports 6099,7998,8765 --watch-tasks MaiBotStart,MaiBotMCP,MaiBot_Daily_Backup" `
+     -WorkingDirectory $dir
 $t = New-ScheduledTaskTrigger -AtStartup
 $p = New-ScheduledTaskPrincipal -UserId 'Administrator' -LogonType S4U -RunLevel Highest
 Register-ScheduledTask -TaskName 'EnfieldMonitor' -Action $a -Trigger $t -Principal $p

@@ -127,10 +127,17 @@ public partial class MainViewModel : ViewModelBase
         {
             UptimeText = FormatUptime(s.Server.UptimeHours);
             UptimeCaption = "服务器已运行";
-            string mb = s.Server.Maibot is { Running: true } m
-                ? "麦麦在线 " + string.Join("/", m.Ports.Where(kv => kv.Value).Select(kv => kv.Key))
-                : "麦麦离线";
-            TargetText = (s.Server.Host ?? "服务器") + " · " + mb;
+
+            string target = s.Server.Host ?? "服务器";
+            if (s.Server.Service is { } svc)
+            {
+                string name = string.IsNullOrWhiteSpace(svc.Name) ? "服务" : svc.Name!;
+                var openPorts = svc.Ports.Where(kv => kv.Value).Select(kv => kv.Key).ToList();
+                target += svc.Running
+                    ? " · " + name + " 在线" + (openPorts.Count > 0 ? " " + string.Join("/", openPorts) : "")
+                    : " · " + name + " 离线";
+            }
+            TargetText = target;
         }
 
         var sec = (int)(DateTime.Now - _lastRefresh).TotalSeconds;

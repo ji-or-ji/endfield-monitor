@@ -90,16 +90,17 @@ public sealed class ServerInfo
 {
     [JsonPropertyName("host")]         public string? Host { get; set; }
     [JsonPropertyName("uptime_hours")] public double UptimeHours { get; set; }
-    [JsonPropertyName("maibot")]       public MaibotInfo? Maibot { get; set; }
-    [JsonPropertyName("tasks")]        public List<TaskInfo> Tasks { get; set; } = new();
+    [JsonPropertyName("service")]      public ServiceInfo? Service { get; set; }
 }
 
-public sealed class MaibotInfo
+/// <summary>被关注的服务（可选，由服务端 --watch-* 参数决定；未配置则为 null）。</summary>
+public sealed class ServiceInfo
 {
-    [JsonPropertyName("running")]   public bool Running { get; set; }
-    [JsonPropertyName("core_pid")]  public int? CorePid { get; set; }
-    [JsonPropertyName("shell_pid")] public int? ShellPid { get; set; }
-    [JsonPropertyName("ports")]     public Dictionary<string, bool> Ports { get; set; } = new();
+    [JsonPropertyName("name")]    public string? Name { get; set; }
+    [JsonPropertyName("running")] public bool Running { get; set; }
+    [JsonPropertyName("matches")] public int Matches { get; set; }
+    [JsonPropertyName("ports")]   public Dictionary<string, bool> Ports { get; set; } = new();
+    [JsonPropertyName("tasks")]   public List<TaskInfo> Tasks { get; set; } = new();
 }
 
 public sealed class TaskInfo
