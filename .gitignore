@@ -1,0 +1,15 @@
+# 构建产物
+bin/
+obj/
+publish/
+*.user
+
+# 开发期截图与诊断文件
+shot_*.png
+diag*.txt
+
+# 原项目参考资料（第三方代码，仅本地研究用，不随本仓库分发）
+reference/
+
+# 本地覆盖配置
+*.local.json

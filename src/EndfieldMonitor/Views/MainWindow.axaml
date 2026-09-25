@@ -1,0 +1,383 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:EndfieldMonitor.ViewModels"
+        xmlns:controls="using:EndfieldMonitor.Controls"
+        x:Class="EndfieldMonitor.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="终末地管理器"
+        Width="1180" Height="820"
+        MinWidth="960" MinHeight="660"
+        WindowDecorations="None"
+        Background="{StaticResource BgBrush}"
+        FontFamily="{StaticResource UiFont}">
+
+    <Window.Styles>
+        <Style Selector="Button.tab">
+            <Setter Property="Width" Value="38" />
+            <Setter Property="Height" Value="38" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Background" Value="#ECECEA" />
+            <Setter Property="BorderBrush" Value="{StaticResource LineBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style Selector="Button.tab Path">
+            <Setter Property="Stroke" Value="#75756F" />
+            <Setter Property="StrokeThickness" Value="2" />
+        </Style>
+        <Style Selector="Button.tab.active">
+            <Setter Property="Background" Value="{StaticResource DarkBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource DarkBrush}" />
+        </Style>
+        <Style Selector="Button.tab.active Path">
+            <Setter Property="Stroke" Value="{StaticResource YellowBrush}" />
+        </Style>
+        <Style Selector="Button.round">
+            <Setter Property="Width" Value="40" />
+            <Setter Property="Height" Value="40" />
+            <Setter Property="CornerRadius" Value="20" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Background" Value="#F7F7F4" />
+            <Setter Property="BorderBrush" Value="#CFCFCA" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+    </Window.Styles>
+
+    <Panel>
+        <Grid RowDefinitions="Auto,*">
+
+            <!-- ============ 顶栏 ============ -->
+            <Border Grid.Row="0" Name="TopBar"
+                    Background="#F2F6F6F4"
+                    BorderBrush="{StaticResource LineBrush}"
+                    BorderThickness="0,0,0,1"
+                    Padding="28,14">
+                <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="18">
+
+                    <Border Grid.Column="0" Background="{StaticResource DarkBrush}" Padding="12,7">
+                        <StackPanel Orientation="Horizontal" Spacing="7">
+                            <TextBlock Text="//" Foreground="{StaticResource YellowBrush}" FontSize="15" />
+                            <TextBlock Text="终末地管理器" Foreground="White" FontSize="15" LetterSpacing="1" />
+                        </StackPanel>
+                    </Border>
+
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                        <Button Name="NavOverview" Classes="tab"
+                                Classes.active="{Binding IsOverviewPage}" Click="OnNavOverview">
+                            <Path Data="M20.2 15.5A8.5 8.5 0 1 0 3.8 15.5 M12 13L15.5 9.5 M10.6 13A1.4 1.4 0 1 0 13.4 13A1.4 1.4 0 1 0 10.6 13Z" />
+                        </Button>
+                        <Button Name="NavPerf" Classes="tab"
+                                Classes.active="{Binding IsPerfPage}" Click="OnNavPerf">
+                            <Path Data="M22 12H18L15 21L9 3L6 12H2" />
+                        </Button>
+                    </StackPanel>
+
+                    <Button Grid.Column="2" Classes="round" Name="SettingsButton" Margin="0,0,10,0">
+                        <Path Data="M9 12A3 3 0 1 0 15 12A3 3 0 1 0 9 12Z M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.14.35.42.64.78.78H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" Stroke="#85858A" StrokeThickness="2" />
+                    </Button>
+
+                    <Border Grid.Column="3" Background="#B3FFFFFF" BorderBrush="{StaticResource LineBrush}"
+                            BorderThickness="1" CornerRadius="14" Padding="12,6">
+                        <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                            <Ellipse Width="8" Height="8" Fill="#B9B9B3" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding SourceText}" FontSize="12"
+                                       Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+
+                    <Button Grid.Column="4" Classes="round" Name="CloseButton">
+                        <Path Data="M5.2 5.2L18.8 18.8 M18.8 5.2L5.2 18.8"
+                              Stroke="#85858A" StrokeThickness="3" />
+                    </Button>
+                </Grid>
+            </Border>
+
+            <!-- ============ 内容 ============ -->
+            <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="28,26,28,40" Spacing="30">
+
+                    <!-- 页一：综合占用 -->
+                    <Grid ColumnDefinitions="470,*" ColumnSpacing="26" IsVisible="{Binding IsOverviewPage}">
+                        <Grid Grid.Column="0" Height="520">
+                            <Grid Width="470" Height="470" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <controls:RingGauge Value="{Binding Composite}" />
+                                <controls:ParticleBlob Width="290" Height="290" />
+
+                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <Border Background="{StaticResource DarkBrush}" CornerRadius="20"
+                                            Padding="12,5" HorizontalAlignment="Center">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBlock Text="占用报告" Foreground="White" FontSize="12" VerticalAlignment="Center" />
+                                            <Border Width="22" Height="12" CornerRadius="8"
+                                                    Background="{StaticResource YellowBrush}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Border>
+                                    <TextBlock Text="{Binding BigNumber}" FontSize="52" Foreground="#3F3F3C"
+                                               HorizontalAlignment="Center" Margin="0,6,0,0" />
+                                    <TextBlock Text="{Binding MaxNumber, StringFormat='/ {0}'}" FontSize="14"
+                                               Foreground="{StaticResource TextDimBrush}" HorizontalAlignment="Center" />
+                                    <TextBlock Text="{Binding UptimeText}" FontSize="16" Foreground="#5A5A55"
+                                               LetterSpacing="2" HorizontalAlignment="Center" Margin="0,12,0,2" />
+                                    <TextBlock Text="{Binding UptimeCaption}" FontSize="11" Foreground="{StaticResource TextDimBrush}"
+                                               LetterSpacing="3" HorizontalAlignment="Center" />
+                                </StackPanel>
+                            </Grid>
+
+                            <Grid HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,15,12,0"
+                                  ColumnDefinitions="Auto,Auto">
+                                <Border Grid.Column="0" Background="{StaticResource DarkBrush}" Padding="18,10"
+                                        BoxShadow="0 3 6 0 #38000000">
+                                    <TextBlock Text="{Binding BigNumber}" Foreground="White" FontSize="24" />
+                                </Border>
+                                <Border Grid.Column="1" Background="#DDDDD8" Padding="16,10">
+                                    <TextBlock Text="实际占用" FontSize="13" LetterSpacing="2"
+                                               Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" />
+                                </Border>
+                            </Grid>
+
+                            <Grid HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="12,0,0,56"
+                                  ColumnDefinitions="Auto,Auto">
+                                <Border Grid.Column="0" Background="#DDDDD8" Padding="16,10">
+                                    <TextBlock Text="最大占用" FontSize="13" LetterSpacing="2"
+                                               Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" />
+                                </Border>
+                                <Border Grid.Column="1" Background="{StaticResource DarkBrush}" Padding="18,10"
+                                        BoxShadow="0 3 6 0 #38000000">
+                                    <TextBlock Text="{Binding MaxNumber}" Foreground="White" FontSize="24" />
+                                </Border>
+                            </Grid>
+                        </Grid>
+
+                        <Border Grid.Column="1" Background="{StaticResource PanelBrush}"
+                                BorderBrush="{StaticResource LineBrush}" BorderThickness="1"
+                                Padding="18,20,20,22" MaxHeight="566">
+                            <Grid RowDefinitions="Auto,Auto,*">
+                                <StackPanel Grid.Row="0" Orientation="Horizontal">
+                                    <TextBlock Text="应用概况" FontSize="17" LetterSpacing="3" Foreground="#4C4C48"
+                                               Padding="4,0,4,8" />
+                                </StackPanel>
+
+                                <Grid Grid.Row="1" ColumnDefinitions="*,130,150" Margin="6,14,6,8">
+                                    <TextBlock Grid.Column="0" Text="应用名称" FontSize="13" />
+                                    <TextBlock Grid.Column="1" Text="CPU 占用" FontSize="13" HorizontalAlignment="Right" />
+                                    <TextBlock Grid.Column="2" Text="内存占用" FontSize="13" HorizontalAlignment="Right" />
+                                </Grid>
+
+                                <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                                    <ItemsControl ItemsSource="{Binding Apps}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:AppRowViewModel">
+                                                <Border Background="{StaticResource Panel2Brush}" BorderBrush="#E2E2DE"
+                                                        BorderThickness="1" Margin="0,0,0,7" Padding="10,7">
+                                                    <Grid ColumnDefinitions="*,130,150">
+                                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12">
+                                                            <Border Width="38" Height="38" Background="{StaticResource Dark2Brush}">
+                                                                <Path Data="{Binding Icon}" Stroke="White" StrokeThickness="2" />
+                                                            </Border>
+                                                            <StackPanel VerticalAlignment="Center">
+                                                                <TextBlock Text="{Binding Name}" FontSize="14" Foreground="#454540" />
+                                                                <TextBlock Text="{Binding Sub}" FontSize="11"
+                                                                           Foreground="{StaticResource TextDimBrush}" />
+                                                            </StackPanel>
+                                                        </StackPanel>
+
+                                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                                                <TextBlock Text="{Binding CpuText}" FontSize="15" Foreground="#3F3F3C" />
+                                                                <TextBlock Text="%" FontSize="15" Foreground="{StaticResource BlueBrush}" />
+                                                            </StackPanel>
+                                                            <Border Height="3" Background="#E6E6E2" Margin="0,4,0,0"
+                                                                    HorizontalAlignment="Right" Width="104">
+                                                                <Border Height="3" Background="{StaticResource YellowBarBrush}"
+                                                                        HorizontalAlignment="Left" Width="{Binding CpuBar}" />
+                                                            </Border>
+                                                        </StackPanel>
+
+                                                        <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                                                <TextBlock Text="{Binding MemText}" FontSize="15" Foreground="#3F3F3C" />
+                                                                <TextBlock Text=" MB" FontSize="11"
+                                                                           Foreground="{StaticResource TextDimBrush}" />
+                                                            </StackPanel>
+                                                            <Border Height="3" Background="#E6E6E2" Margin="0,4,0,0"
+                                                                    HorizontalAlignment="Right" Width="120">
+                                                                <Border Height="3" Background="{StaticResource YellowBarBrush}"
+                                                                        HorizontalAlignment="Left" Width="{Binding MemBar}" />
+                                                            </Border>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <!-- 页二：设备性能 -->
+                    <StackPanel IsVisible="{Binding IsPerfPage}" Spacing="0">
+                        <Border Background="#D15A5A56" CornerRadius="6" Padding="12,10" BoxShadow="0 2 8 0 #2E000000">
+                            <Grid ColumnDefinitions="185,*,175,175">
+                                <TextBlock Grid.Column="0" Text="设备信息" Foreground="White" FontSize="13" />
+                                <TextBlock Grid.Column="1" Text="占用率走势" Foreground="White" FontSize="13"
+                                           HorizontalAlignment="Center" />
+                                <TextBlock Grid.Column="2" Text="当前数据" Foreground="White" FontSize="13" />
+                                <TextBlock Grid.Column="3" Text="规格" Foreground="White" FontSize="13" />
+                            </Grid>
+                        </Border>
+
+                        <ItemsControl ItemsSource="{Binding Devices}" Margin="0,14,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:DeviceRowViewModel">
+                                    <Border Background="{StaticResource Panel2Brush}" BorderBrush="#E0E0DC"
+                                            BorderThickness="1" Margin="0,0,0,9" Padding="6,9,12,9"
+                                            BoxShadow="0 2 6 0 #14000000">
+                                        <Grid ColumnDefinitions="185,*,175,175">
+                                            <Grid Grid.Column="0" ColumnDefinitions="*,Auto">
+                                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Name}" FontSize="14" Foreground="#454540" />
+                                                    <TextBlock Text="{Binding Sub}" FontSize="11"
+                                                               Foreground="{StaticResource TextDimBrush}" />
+                                                </StackPanel>
+                                                <Button Grid.Column="1" Width="44" Height="44" Padding="0"
+                                                        Background="{StaticResource Dark2Brush}" CornerRadius="0"
+                                                        Click="OnDeviceIconClick">
+                                                    <Path Data="{Binding Icon}" Stroke="White" StrokeThickness="2" />
+                                                </Button>
+                                            </Grid>
+
+                                            <controls:SparkChart Grid.Column="1" Height="66" Margin="10,0,14,0"
+                                                                 Values="{Binding History}" />
+
+                                            <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="3">
+                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                    <TextBlock Text="{Binding Cur1Label}" FontSize="13" Foreground="#5A5A55" />
+                                                    <TextBlock Text="{Binding Cur1Value}" FontSize="15"
+                                                               Foreground="{StaticResource BlueBrush}" />
+                                                </StackPanel>
+                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                    <TextBlock Text="{Binding Cur2Label}" FontSize="13" Foreground="#5A5A55" />
+                                                    <TextBlock Text="{Binding Cur2Value}" FontSize="15"
+                                                               Foreground="{StaticResource OrangeBrush}" />
+                                                </StackPanel>
+                                            </StackPanel>
+
+                                            <StackPanel Grid.Column="3" VerticalAlignment="Center">
+                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                    <TextBlock Text="规格" FontSize="13"
+                                                               Foreground="{StaticResource TextDimBrush}" />
+                                                    <TextBlock Text="{Binding Spec}" FontSize="13" Foreground="#5A5A55" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+
+                    <!-- 底栏 -->
+                    <Border Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource LineBrush}"
+                            BorderThickness="1" Padding="18,14" BoxShadow="0 2 8 0 #10000000">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <StackPanel Grid.Column="0" Spacing="8" VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <TextBlock Text="上次数据刷新：" FontSize="13" Foreground="{StaticResource TextBrush}" />
+                                    <TextBlock Text="{Binding LastRefreshText}" FontSize="13" Foreground="{StaticResource TextBrush}" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <TextBlock Text="{Binding TargetText}" FontSize="13" Foreground="{StaticResource TextBrush}" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,0">
+                                    <Border Background="#C9C9C4" Padding="16,4">
+                                        <TextBlock Text="{Binding TagCpu}" FontSize="12" />
+                                    </Border>
+                                    <Border Background="#C9C9C4" Padding="16,4">
+                                        <TextBlock Text="{Binding TagMem}" FontSize="12" />
+                                    </Border>
+                                    <Border Background="#C9C9C4" Padding="16,4">
+                                        <TextBlock Text="{Binding TagComp}" FontSize="12" />
+                                    </Border>
+                                </StackPanel>
+                            </StackPanel>
+
+                            <Button Grid.Column="1" Name="RefreshButton" Background="{StaticResource Dark2Brush}"
+                                    Foreground="White" CornerRadius="18" Padding="30,16">
+                                <TextBlock Text="刷新数据" FontSize="18" LetterSpacing="2" />
+                            </Button>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+
+        <!-- ============ 连接设置覆盖层 ============ -->
+        <Border Name="SettingsOverlay" IsVisible="{Binding IsSettingsOpen}" Background="#73222220">
+            <Border Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource LineBrush}"
+                    BorderThickness="1" Width="460" Padding="24"
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                    BoxShadow="0 14 44 0 #52000000">
+                <StackPanel Spacing="18">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0" Text="连接设置" FontSize="16" LetterSpacing="3"
+                                   Foreground="#4C4C48" VerticalAlignment="Center" />
+                        <Button Grid.Column="1" Classes="round" Name="SettingsCloseButton">
+                            <Path Data="M5.2 5.2L18.8 18.8 M18.8 5.2L5.2 18.8" Stroke="#85858A" StrokeThickness="3" />
+                        </Button>
+                    </Grid>
+
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="服务器地址" FontSize="13" Foreground="{StaticResource TextDimBrush}" />
+                        <TextBox Text="{Binding EditServer}" Watermark="192.168.101.14:8898" FontSize="14" />
+                    </StackPanel>
+
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="共享口令" FontSize="13" Foreground="{StaticResource TextDimBrush}" />
+                        <TextBox Text="{Binding EditToken}" PasswordChar="●" FontSize="14" />
+                    </StackPanel>
+
+                    <TextBlock Text="口令需与服务端启动时的 --token 一致；填错只会停在「离线」。"
+                               FontSize="11" Foreground="{StaticResource TextDimBrush}" TextWrapping="Wrap" />
+
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+                        <Button Name="SettingsCancelButton" Content="取消" Padding="20,10" />
+                        <Button Name="SettingsSaveButton" Content="保存并连接" Padding="24,10"
+                                Background="{StaticResource Dark2Brush}" Foreground="White" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Border>
+
+        <!-- ============ 型号详情覆盖层 ============ -->
+        <Border Name="DetailOverlay" IsVisible="{Binding IsDetailOpen}" Background="#73222220">
+            <Border Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource LineBrush}"
+                    BorderThickness="1" Width="440" Padding="20,20,24,24"
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                    BoxShadow="0 14 44 0 #52000000">
+                <StackPanel>
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0" Text="型号与规格" FontSize="16" LetterSpacing="3"
+                                   Foreground="#4C4C48" />
+                        <Button Grid.Column="1" Classes="round" Name="DetailCloseButton">
+                            <Path Data="M5.2 5.2L18.8 18.8 M18.8 5.2L5.2 18.8" Stroke="#85858A" StrokeThickness="3" />
+                        </Button>
+                    </Grid>
+
+                    <ItemsControl ItemsSource="{Binding DetailRows}" Margin="0,14,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:DetailRowViewModel">
+                                <Grid ColumnDefinitions="130,*" Margin="0,0,0,2">
+                                    <TextBlock Grid.Column="0" Text="{Binding Label}" FontSize="13"
+                                               Foreground="{StaticResource TextDimBrush}" Margin="6,9,6,9" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Value}" FontSize="13"
+                                               Foreground="#3F3F3C" HorizontalAlignment="Right" Margin="6,9,6,9" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+        </Border>
+    </Panel>
+</Window>

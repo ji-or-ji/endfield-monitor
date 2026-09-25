@@ -1,0 +1,111 @@
+using System.Collections.Generic;
+using System.Text.Json.Serialization;
+
+namespace EndfieldMonitor.Models;
+
+/// <summary>
+/// 服务端 /snapshot 返回的一份完整快照。
+/// 字段命名沿用原「终末地管理器」采集端的 JSON 约定（snake_case），
+/// 末尾多出一个 server 块承载麦麦业务数据。
+/// </summary>
+public sealed class Snapshot
+{
+    [JsonPropertyName("ts")]       public double Ts { get; set; }
+    [JsonPropertyName("interval")] public double Interval { get; set; }
+    [JsonPropertyName("live")]     public bool Live { get; set; }
+
+    [JsonPropertyName("cpu")]   public CpuInfo Cpu { get; set; } = new();
+    [JsonPropertyName("gpu")]   public GpuInfo Gpu { get; set; } = new();
+    [JsonPropertyName("mem")]   public MemInfo Mem { get; set; } = new();
+    [JsonPropertyName("disks")] public List<DiskInfo> Disks { get; set; } = new();
+    [JsonPropertyName("net")]   public NetInfo Net { get; set; } = new();
+    [JsonPropertyName("procs")] public List<ProcInfo> Procs { get; set; } = new();
+
+    /// <summary>麦麦业务扩展块，本项目相对原采集端的增量。</summary>
+    [JsonPropertyName("server")] public ServerInfo? Server { get; set; }
+}
+
+public sealed class CpuInfo
+{
+    [JsonPropertyName("name")]    public string? Name { get; set; }
+    [JsonPropertyName("threads")] public int Threads { get; set; }
+    [JsonPropertyName("util")]    public double Util { get; set; }
+    [JsonPropertyName("freq")]    public double Freq { get; set; }
+    [JsonPropertyName("base")]    public double Base { get; set; }
+    [JsonPropertyName("max")]     public double Max { get; set; }
+}
+
+public sealed class GpuInfo
+{
+    [JsonPropertyName("name")]      public string? Name { get; set; }
+    [JsonPropertyName("util")]      public double Util { get; set; }
+    [JsonPropertyName("freq")]      public double? Freq { get; set; }
+    [JsonPropertyName("mem_used")]  public double? MemUsed { get; set; }
+    [JsonPropertyName("mem_total")] public double MemTotal { get; set; }
+    [JsonPropertyName("ok")]        public bool Ok { get; set; }
+}
+
+public sealed class MemInfo
+{
+    [JsonPropertyName("used")]  public double Used { get; set; }
+    [JsonPropertyName("total")] public double Total { get; set; }
+    [JsonPropertyName("pct")]   public double Pct { get; set; }
+    [JsonPropertyName("speed")] public string? Speed { get; set; }
+    [JsonPropertyName("type")]  public string? Type { get; set; }
+}
+
+public sealed class DiskInfo
+{
+    [JsonPropertyName("name")]  public string? Name { get; set; }
+    [JsonPropertyName("used")]  public double Used { get; set; }
+    [JsonPropertyName("total")] public double Total { get; set; }
+    [JsonPropertyName("pct")]   public double Pct { get; set; }
+    [JsonPropertyName("util")]  public double Util { get; set; }
+    [JsonPropertyName("rw")]    public string? Rw { get; set; }
+    [JsonPropertyName("media")] public string? Media { get; set; }
+    [JsonPropertyName("model")] public string? Model { get; set; }
+}
+
+public sealed class NetInfo
+{
+    [JsonPropertyName("name")] public string? Name { get; set; }
+    [JsonPropertyName("down")] public double Down { get; set; }
+    [JsonPropertyName("up")]   public double Up { get; set; }
+    [JsonPropertyName("link")] public double Link { get; set; }
+    [JsonPropertyName("util")] public double Util { get; set; }
+}
+
+public sealed class ProcInfo
+{
+    [JsonPropertyName("pid")]     public int Pid { get; set; }
+    [JsonPropertyName("name")]    public string? Name { get; set; }
+    [JsonPropertyName("exe")]     public string? Exe { get; set; }
+    [JsonPropertyName("mem")]     public double Mem { get; set; }
+    [JsonPropertyName("cpu")]     public double Cpu { get; set; }
+    [JsonPropertyName("display")] public string? Display { get; set; }
+    [JsonPropertyName("title")]   public string? Title { get; set; }
+}
+
+public sealed class ServerInfo
+{
+    [JsonPropertyName("host")]         public string? Host { get; set; }
+    [JsonPropertyName("uptime_hours")] public double UptimeHours { get; set; }
+    [JsonPropertyName("maibot")]       public MaibotInfo? Maibot { get; set; }
+    [JsonPropertyName("tasks")]        public List<TaskInfo> Tasks { get; set; } = new();
+}
+
+public sealed class MaibotInfo
+{
+    [JsonPropertyName("running")]   public bool Running { get; set; }
+    [JsonPropertyName("core_pid")]  public int? CorePid { get; set; }
+    [JsonPropertyName("shell_pid")] public int? ShellPid { get; set; }
+    [JsonPropertyName("ports")]     public Dictionary<string, bool> Ports { get; set; } = new();
+}
+
+public sealed class TaskInfo
+{
+    [JsonPropertyName("name")]        public string? Name { get; set; }
+    [JsonPropertyName("status")]      public string? Status { get; set; }
+    [JsonPropertyName("last_run")]    public string? LastRun { get; set; }
+    [JsonPropertyName("last_result")] public string? LastResult { get; set; }
+}
