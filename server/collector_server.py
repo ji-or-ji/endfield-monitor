@@ -36,14 +36,17 @@ PROC_INTERVAL = 2.0     # 进程列表
 TASK_INTERVAL = 60.0    # 计划任务等慢查询
 
 PROC_LIMIT = 40
-PORTS_OF_INTEREST = (6099, 7998, 8765)
-MAIBOT_TASKS = ("MaiBotStart", "MaiBotMCP", "MaiBot_Daily_Backup")
+
+# 要盯的服务由命令行参数指定，默认什么都不盯（保持通用形态）
+WATCH_NAME = ""
+WATCH_PROCS: tuple = ()
+WATCH_PORTS: tuple = ()
+WATCH_TASKS: tuple = ()
 
 state = {
     "static": {},
     "snapshot": None,
     "tasks": [],
-    "maibot": {},
     "prev_net": None,
     "prev_disk": None,
     "prev_time": None,
@@ -174,7 +177,7 @@ foreach ($x in $d) {
 def collect_tasks():
     """计划任务状态。schtasks 走 cmd，比 PowerShell 起得轻，且 60 秒才一次。"""
     result = []
-    for name in MAIBOT_TASKS:
+    for name in WATCH_TASKS:
         entry = {"name": name, "status": "未知", "last_run": "—", "last_result": "—"}
         try:
             r = subprocess.run(["schtasks", "/query", "/tn", name, "/fo", "csv", "/nh", "/v"],
@@ -193,28 +196,39 @@ def collect_tasks():
     return result
 
 
-def collect_maibot(procs):
-    """从进程快照里挑出麦麦相关进程，并查关注端口的监听状态。"""
-    info = {"running": False, "core_pid": None, "shell_pid": None, "ports": {}}
-    for name, pid in procs:
-        low = name.lower()
-        if "maibot" in low or "napcat" in low:
-            info["running"] = True
-            if info["shell_pid"] is None:
-                info["shell_pid"] = pid
-            info["core_pid"] = pid
-    if info["running"] and info["core_pid"] == info["shell_pid"]:
-        info["core_pid"] = None
+# ================= 关注的服（可选，低频） =================
+def collect_service(procs):
+    """按配置挑出要盯的进程与端口。
 
-    listening = set()
-    try:
-        for c in psutil.net_connections(kind="inet"):
-            if c.status == psutil.CONN_LISTEN and c.laddr:
-                listening.add(c.laddr.port)
-    except Exception:
-        pass
-    for p in PORTS_OF_INTEREST:
-        info["ports"][str(p)] = p in listening
+    未配置任何关注项时返回 None（快照里 service 字段为 null）。
+    """
+    if not (WATCH_PROCS or WATCH_PORTS or WATCH_TASKS):
+        return None
+
+    info = {"name": WATCH_NAME or "服务", "running": False, "matches": 0,
+            "ports": {}, "tasks": []}
+
+    if WATCH_PROCS:
+        keys = tuple(k.lower() for k in WATCH_PROCS)
+        count = 0
+        for name, _pid in procs:
+            low = (name or "").lower()
+            if any(k in low for k in keys):
+                count += 1
+        info["matches"] = count
+        info["running"] = count > 0
+
+    if WATCH_PORTS:
+        listening = set()
+        try:
+            for c in psutil.net_connections(kind="inet"):
+                if c.status == psutil.CONN_LISTEN and c.laddr:
+                    listening.add(c.laddr.port)
+        except Exception:
+            pass
+        for p in WATCH_PORTS:
+            info["ports"][str(p)] = p in listening
+
     return info
 
 
@@ -324,15 +338,17 @@ def sampler():
             ps.sort(key=lambda x: (-x["cpu"], -x["mem"]))
             proc_cache = ps[:PROC_LIMIT]
 
-        # --- 麦麦业务 ---
-        maibot = collect_maibot([(p["name"], p["pid"]) for p in proc_cache])
+        # --- 被关注的服务（默认不盯任何东西） ---
+        service = collect_service([(p["name"], p["pid"]) for p in proc_cache])
 
-        if now - state["task_at"] >= TASK_INTERVAL:
+        if WATCH_TASKS and now - state["task_at"] >= TASK_INTERVAL:
             state["task_at"] = now
             try:
                 state["tasks"] = collect_tasks()
             except Exception:
                 pass
+        if service is not None:
+            service["tasks"] = state["tasks"]
 
         snap = {
             "ts": now,
@@ -354,8 +370,7 @@ def sampler():
             "server": {
                 "host": st.get("host"),
                 "uptime_hours": round((time.time() - psutil.boot_time()) / 3600.0, 1),
-                "maibot": maibot,
-                "tasks": state["tasks"],
+                "service": service,
             },
         }
         with lock:
@@ -409,14 +424,28 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
 
+def _csv(value):
+    return tuple(x.strip() for x in value.split(",") if x.strip())
+
+
 def main():
+    global WATCH_NAME, WATCH_PROCS, WATCH_PORTS, WATCH_TASKS
+
     ap = argparse.ArgumentParser(description="终末地监视器 · 服务端采集端")
     ap.add_argument("--host", default="0.0.0.0")
     ap.add_argument("--port", type=int, default=8898)
     ap.add_argument("--token", default="", help="共享口令，留空则不校验（仅本地调试用）")
+    ap.add_argument("--watch-name", default="", help="要盯的服务显示名，如「麦麦」")
+    ap.add_argument("--watch-procs", default="", help="进程名关键字，逗号分隔，如 maibot,napcat")
+    ap.add_argument("--watch-ports", default="", help="要盯的端口，逗号分隔，如 6099,7998")
+    ap.add_argument("--watch-tasks", default="", help="计划任务名，逗号分隔（内名需精确匹配）")
     a = ap.parse_args()
 
     Handler.token = a.token.strip()
+    WATCH_NAME = a.watch_name.strip()
+    WATCH_PROCS = _csv(a.watch_procs)
+    WATCH_PORTS = tuple(int(x) for x in _csv(a.watch_ports) if x.isdigit())
+    WATCH_TASKS = _csv(a.watch_tasks)
 
     print("[采集端] 读取静态硬件信息（仅此一次调用 PowerShell）…", flush=True)
     state["static"] = collect_static()
@@ -427,6 +456,10 @@ def main():
         psutil.virtual_memory().total / 2 ** 30, st.get("mem_type"), st.get("mem_speed")), flush=True)
     print("[采集端] 磁盘: %s" % ", ".join("%s(%s)" % (d["letter"], d["media"])
                                         for d in st.get("disks", [])), flush=True)
+    if WATCH_PROCS or WATCH_PORTS or WATCH_TASKS:
+        print("[采集端] 关注服务: %s | 进程 %s | 端口 %s | 任务 %s"
+              % (WATCH_NAME or "服务", WATCH_PROCS or "-", WATCH_PORTS or "-", WATCH_TASKS or "-"),
+              flush=True)
 
     threading.Thread(target=sampler, daemon=True).start()
     srv = ThreadingHTTPServer((a.host, a.port), Handler)
