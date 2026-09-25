@@ -14,6 +14,12 @@ var memTypeNames = map[int]string{
 	20: "DDR", 21: "DDR2", 24: "DDR3", 26: "DDR4", 34: "DDR5",
 }
 
+// Get-ScheduledTask 的状态是英文枚举，转成界面统一的中文。
+var taskStateNames = map[string]string{
+	"Ready": "就绪", "Running": "正在运行", "Disabled": "已禁用",
+	"Queued": "已排队", "Unknown": "未知",
+}
+
 // runPS 执行一段 PowerShell 并把结果原样取回。
 // 结果先转成 UTF-8 的 Base64 再输出，绕开 PowerShell 5.1 在 stdout 被重定向时的编码问题。
 // 只在启动时调用少数几次，之后采样完全不碰 WMI。
@@ -32,6 +38,20 @@ func runPS(script string) string {
 	return strings.TrimSpace(string(raw))
 }
 
+// unmarshalList 容忍两种返回：真正的 JSON 数组，或单元素被拆包后的单个对象。
+// PowerShell 里「@(...) | ConvertTo-Json」会被管道拆包，单元素就退化成对象。
+func unmarshalList[T any](raw string) []T {
+	var list []T
+	if json.Unmarshal([]byte(raw), &list) == nil && len(list) > 0 {
+		return list
+	}
+	var one T
+	if json.Unmarshal([]byte(raw), &one) == nil {
+		return []T{one}
+	}
+	return nil
+}
+
 type winMem struct {
 	Speed            int `json:"Speed"`
 	SMBIOSMemoryType int `json:"SMBIOSMemoryType"`
@@ -45,9 +65,8 @@ type winPhysDisk struct {
 
 func collectStaticExtra(s *staticInfo) {
 	// 内存条类型与频率
-	if out := runPS("@(Get-CimInstance Win32_PhysicalMemory | Select-Object Speed,SMBIOSMemoryType) | ConvertTo-Json -Compress"); out != "" {
-		var mems []winMem
-		if json.Unmarshal([]byte(out), &mems) == nil && len(mems) > 0 {
+	if out := runPS("ConvertTo-Json -Compress -InputObject @(Get-CimInstance Win32_PhysicalMemory | Select-Object Speed,SMBIOSMemoryType)"); out != "" {
+		if mems := unmarshalList[winMem](out); len(mems) > 0 {
 			best := 0
 			for _, m := range mems {
 				if m.Speed > best {
@@ -82,8 +101,8 @@ func collectStaticExtra(s *staticInfo) {
 
 	// 介质类型
 	var phys []winPhysDisk
-	if out := runPS("@(Get-PhysicalDisk | Select-Object FriendlyName,MediaType,BusType) | ConvertTo-Json -Compress"); out != "" {
-		_ = json.Unmarshal([]byte(out), &phys)
+	if out := runPS("ConvertTo-Json -Compress -InputObject @(Get-PhysicalDisk | Select-Object FriendlyName,MediaType,BusType)"); out != "" {
+		phys = unmarshalList[winPhysDisk](out)
 	}
 	for i := range s.Disks {
 		s.Disks[i].Media = mediaOf(s.Disks[i].Model, phys)
@@ -132,16 +151,20 @@ func collectTasks() []TaskInfo {
 		script := fmt.Sprintf(
 			"$n='%s'; $t=Get-ScheduledTask -TaskName $n -ErrorAction SilentlyContinue; "+
 				"$i=Get-ScheduledTaskInfo -TaskName $n -ErrorAction SilentlyContinue; "+
-				"if($t){ @([pscustomobject]@{name=$n;state=$t.State.ToString();"+
-				"last_run=(''+$i.LastRunTime);last_result=(''+$i.LastTaskResult)}) | ConvertTo-Json -Compress }",
+				"if($t){ ConvertTo-Json -Compress -InputObject @([pscustomobject]@{name=$n;state=$t.State.ToString();"+
+				"last_run=$(if($i.LastRunTime){$i.LastRunTime.ToString('yyyy-MM-dd HH:mm')}else{''});"+
+				"last_result=(''+$i.LastTaskResult)}) }",
 			safe)
 
-		var arr []winTask
 		if raw := runPS(script); raw != "" {
-			if json.Unmarshal([]byte(raw), &arr) == nil && len(arr) > 0 {
+			if arr := unmarshalList[winTask](raw); len(arr) > 0 {
 				w := arr[0]
 				if w.State != "" {
-					ti.Status = w.State
+					if zh, ok := taskStateNames[w.State]; ok {
+						ti.Status = zh
+					} else {
+						ti.Status = w.State
+					}
 				}
 				if w.LastRun != "" {
 					ti.LastRun = w.LastRun

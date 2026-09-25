@@ -21,7 +21,8 @@
 │   ├── Theme/                  设计令牌（配色、字体）
 │   ├── ViewModels/             视图模型
 │   └── Views/                  窗口与页面
-├── server/collector_server.py  服务端采集端（只读 HTTP，Python + psutil）
+├── server-go/                  服务端采集端（Go，只读 HTTP，单文件零依赖）
+├── server/collector_server.py  早期 Python 版采集端（已由 Go 版取代，留作参考）
 └── reference/                  仅本地研究用的原项目资料，不随仓库分发
 ```
 
@@ -29,8 +30,8 @@
 
 ```
 [被监视机器]                          [局域网任意设备]
-collector_server.py  ──HTTP/JSON──▶  EnfieldMonitor.exe
-(psutil 采样, 1s 一次)                (Avalonia 渲染, 1s 轮询)
+enf-collector.exe    ──HTTP/JSON──▶  EnfieldMonitor.exe
+(Go, 1s 采样一次)                     (Avalonia 渲染, 1s 轮询)
 ```
 
 服务端只读、无写操作，向局域网提供一个 `/snapshot` 端点；客户端凭共享口令拉取，
@@ -38,21 +39,27 @@ collector_server.py  ──HTTP/JSON──▶  EnfieldMonitor.exe
 
 ## 服务端部署
 
+服务端是 Go 写的单文件程序，**不需要装任何运行时**。
+
 ```powershell
-# 依赖
-pip install psutil
+# 构建（需要 Go 1.21+）
+cd server-go
+go build -o enf-collector.exe .
 
 # 启动（--token 为空则不校验口令，仅建议本地调试时使用）
-python collector_server.py --port 8898 --token <共享口令>
+.\enf-collector.exe --port 8898 --token <共享口令>
 
 # 想顺带盯一个服务的进程 / 端口 / 计划任务，加这四个参数（全部可选）：
-python collector_server.py --port 8898 --token <共享口令> `
+.\enf-collector.exe --port 8898 --token <共享口令> `
   --watch-name 麦麦 --watch-procs maibot,napcat `
   --watch-ports 6099,7998,8765 `
   --watch-tasks MaiBotStart,MaiBotMCP,MaiBot_Daily_Backup
 ```
 
-四个 `--watch-*` 参数都不给时，这一块完全不参与采集，客户端只显示机器资源。
+四个 `--watch-*` 都不给时，这一块完全不参与采集，客户端只显示机器资源。
+
+**采样开销**：静态信息（CPU 型号、内存条、磁盘型号）只在启动时取一次，
+之后全部走 gopsutil 的原生调用；进程列表 2 秒一次，计划任务 60 秒一次。
 
 放行防火墙入站 TCP：
 
@@ -60,13 +67,14 @@ python collector_server.py --port 8898 --token <共享口令> `
 New-NetFirewallRule -DisplayName 'ENF Monitor 8898' -Direction Inbound -Protocol TCP -LocalPort 8898 -Action Allow
 ```
 
-建议再挂一个开机自启的计划任务：
+开机自启的计划任务。**注意 `-Argument` 里不要再写一遍 exe 路径**，只放参数，
+否则启动时第一个非选项参数会让 `--token` 失效：
 
 ```powershell
-$dir = 'C:\path\to\collector'
-$a = New-ScheduledTaskAction -Execute 'C:\path\to\python.exe' `
-     -Argument "$dir\collector_server.py --port 8898 --token <共享口令> --watch-name 麦麦 --watch-procs maibot,napcat --watch-ports 6099,7998,8765 --watch-tasks MaiBotStart,MaiBotMCP,MaiBot_Daily_Backup" `
-     -WorkingDirectory $dir
+$exe = 'C:\path\to\enf-collector.exe'
+$a = New-ScheduledTaskAction -Execute $exe `
+     -Argument "--port 8898 --token <共享口令> --watch-name 麦麦 --watch-procs maibot,napcat --watch-ports 6099,7998,8765 --watch-tasks MaiBotStart,MaiBotMCP,MaiBot_Daily_Backup" `
+     -WorkingDirectory (Split-Path $exe)
 $t = New-ScheduledTaskTrigger -AtStartup
 $p = New-ScheduledTaskPrincipal -UserId 'Administrator' -LogonType S4U -RunLevel Highest
 Register-ScheduledTask -TaskName 'EnfieldMonitor' -Action $a -Trigger $t -Principal $p
