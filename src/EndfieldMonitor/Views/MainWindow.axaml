@@ -24,6 +24,11 @@
         <Style Selector="Button.tab Path">
             <Setter Property="Stroke" Value="#75756F" />
             <Setter Property="StrokeThickness" Value="2" />
+            <Setter Property="Width" Value="19" />
+            <Setter Property="Height" Value="19" />
+            <Setter Property="Stretch" Value="Uniform" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
         <Style Selector="Button.tab.active">
             <Setter Property="Background" Value="{StaticResource DarkBrush}" />
@@ -40,6 +45,23 @@
             <Setter Property="Background" Value="#F7F7F4" />
             <Setter Property="BorderBrush" Value="#CFCFCA" />
             <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style Selector="Button.round Path">
+            <Setter Property="Width" Value="20" />
+            <Setter Property="Height" Value="20" />
+            <Setter Property="Stretch" Value="Uniform" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Path.ico">
+            <Setter Property="Width" Value="20" />
+            <Setter Property="Height" Value="20" />
+            <Setter Property="Stretch" Value="Uniform" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Ellipse.live">
+            <Setter Property="Fill" Value="{StaticResource GreenBrush}" />
         </Style>
     </Window.Styles>
 
@@ -61,7 +83,9 @@
                         </StackPanel>
                     </Border>
 
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                    <!-- 导航：跨满所有列后居中，等价于相对整个窗口居中（与原版一致） -->
+                    <StackPanel Grid.Column="0" Grid.ColumnSpan="5" Orientation="Horizontal" Spacing="8"
+                                HorizontalAlignment="Center" VerticalAlignment="Center">
                         <Button Name="NavOverview" Classes="tab"
                                 Classes.active="{Binding IsOverviewPage}" Click="OnNavOverview">
                             <Path Data="M20.2 15.5A8.5 8.5 0 1 0 3.8 15.5 M12 13L15.5 9.5 M10.6 13A1.4 1.4 0 1 0 13.4 13A1.4 1.4 0 1 0 10.6 13Z" />
@@ -79,7 +103,8 @@
                     <Border Grid.Column="3" Background="#B3FFFFFF" BorderBrush="{StaticResource LineBrush}"
                             BorderThickness="1" CornerRadius="14" Padding="12,6">
                         <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
-                            <Ellipse Width="8" Height="8" Fill="#B9B9B3" VerticalAlignment="Center" />
+                            <Ellipse Width="8" Height="8" Fill="#B9B9B3" VerticalAlignment="Center"
+                                     Classes.live="{Binding IsLive}" />
                             <TextBlock Text="{Binding SourceText}" FontSize="12"
                                        Foreground="{StaticResource TextDimBrush}" VerticalAlignment="Center" />
                         </StackPanel>
@@ -100,8 +125,11 @@
                     <Grid ColumnDefinitions="470,*" ColumnSpacing="26" IsVisible="{Binding IsOverviewPage}">
                         <Grid Grid.Column="0" Height="520">
                             <Grid Width="470" Height="470" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <controls:RingGauge Value="{Binding Composite}" />
-                                <controls:ParticleBlob Width="290" Height="290" />
+                                <!-- 内盘底色在最下：环要压在点云之上，就不能把内盘留在环里一起画上去 -->
+                                <Ellipse Width="252" Height="252" Fill="#EDEDEA" />
+                                <controls:CenterBlob Width="290" Height="290" Mode="{Binding ParticleMode}" />
+                                <controls:OuterCloud Width="290" Height="290" Mode="{Binding ParticleMode}" />
+                                <controls:RingGauge UpperHistory="{Binding CpuHistory}" LowerHistory="{Binding MemHistory}" />
 
                                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                                     <Border Background="{StaticResource DarkBrush}" CornerRadius="20"
@@ -123,27 +151,29 @@
                                 </StackPanel>
                             </Grid>
 
-                            <Grid HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,15,12,0"
+                            <Grid HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,38,82,0"
                                   ColumnDefinitions="Auto,Auto">
-                                <Border Grid.Column="0" Background="{StaticResource DarkBrush}" Padding="18,10"
-                                        BoxShadow="0 3 6 0 #38000000">
-                                    <TextBlock Text="{Binding BigNumber}" Foreground="White" FontSize="24" />
+                                <Border Grid.Column="0" Background="{StaticResource DarkBrush}" Padding="11,7"
+                                        MinWidth="75" BoxShadow="0 3 6 0 #38000000">
+                                    <TextBlock Text="{Binding BigNumber}" Foreground="White" FontSize="19"
+                                               TextAlignment="Center" />
                                 </Border>
-                                <Border Grid.Column="1" Background="#DDDDD8" Padding="16,10">
-                                    <TextBlock Text="实际占用" FontSize="13" LetterSpacing="2"
+                                <Border Grid.Column="1" Background="#DDDDD8" Padding="11,7">
+                                    <TextBlock Text="实际占用" FontSize="11" LetterSpacing="2"
                                                Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" />
                                 </Border>
                             </Grid>
 
-                            <Grid HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="12,0,0,56"
+                            <Grid HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="81,0,0,38"
                                   ColumnDefinitions="Auto,Auto">
-                                <Border Grid.Column="0" Background="#DDDDD8" Padding="16,10">
-                                    <TextBlock Text="最大占用" FontSize="13" LetterSpacing="2"
+                                <Border Grid.Column="0" Background="#DDDDD8" Padding="11,7">
+                                    <TextBlock Text="最大占用" FontSize="11" LetterSpacing="2"
                                                Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" />
                                 </Border>
-                                <Border Grid.Column="1" Background="{StaticResource DarkBrush}" Padding="18,10"
-                                        BoxShadow="0 3 6 0 #38000000">
-                                    <TextBlock Text="{Binding MaxNumber}" Foreground="White" FontSize="24" />
+                                <Border Grid.Column="1" Background="{StaticResource DarkBrush}" Padding="11,7"
+                                        MinWidth="75" BoxShadow="0 3 6 0 #38000000">
+                                    <TextBlock Text="{Binding MaxNumber}" Foreground="White" FontSize="19"
+                                               TextAlignment="Center" />
                                 </Border>
                             </Grid>
                         </Grid>
@@ -172,7 +202,7 @@
                                                     <Grid ColumnDefinitions="*,130,150">
                                                         <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12">
                                                             <Border Width="38" Height="38" Background="{StaticResource Dark2Brush}">
-                                                                <Path Data="{Binding Icon}" Stroke="White" StrokeThickness="2" />
+                                                                <Path Classes="ico" Data="{Binding Icon}" Stroke="White" StrokeThickness="2" />
                                                             </Border>
                                                             <StackPanel VerticalAlignment="Center">
                                                                 <TextBlock Text="{Binding Name}" FontSize="14" Foreground="#454540" />
@@ -243,7 +273,7 @@
                                                 <Button Grid.Column="1" Width="44" Height="44" Padding="0"
                                                         Background="{StaticResource Dark2Brush}" CornerRadius="0"
                                                         Click="OnDeviceIconClick">
-                                                    <Path Data="{Binding Icon}" Stroke="White" StrokeThickness="2" />
+                                                    <Path Classes="ico" Data="{Binding Icon}" Stroke="White" StrokeThickness="2" />
                                                 </Button>
                                             </Grid>
 
@@ -335,6 +365,14 @@
                     <StackPanel Spacing="6">
                         <TextBlock Text="共享口令" FontSize="13" Foreground="{StaticResource TextDimBrush}" />
                         <TextBox Text="{Binding EditToken}" PasswordChar="●" FontSize="14" />
+                    </StackPanel>
+
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="中心点云" FontSize="13" Foreground="{StaticResource TextDimBrush}" />
+                        <ComboBox ItemsSource="{Binding ParticleModeOptions}"
+                                  SelectedIndex="{Binding EditParticleIndex}" HorizontalAlignment="Stretch" />
+                        <TextBlock Text="默认「完整」为终末地原版观感；选「精简」或「关闭」可降低占用。"
+                                   FontSize="11" Foreground="{StaticResource TextDimBrush}" TextWrapping="Wrap" />
                     </StackPanel>
 
                     <TextBlock Text="口令需与服务端启动时的 --token 一致；填错只会停在「离线」。"

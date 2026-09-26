@@ -25,6 +25,25 @@ public partial class MainViewModel : ViewModelBase
     public ObservableCollection<DetailRowViewModel> DetailRows { get; } = new();
 
     [ObservableProperty] public partial double Composite { get; set; }
+    [ObservableProperty] public partial double MemPercent { get; set; }
+
+    // 手写而不是用 [ObservableProperty]：源生成那条属性在运行时绑不到值（同为源生成的
+    // MemPercent 却正常），先绕开。
+    private double _cpuPercent;
+    public double CpuPercent
+    {
+        get => _cpuPercent;
+        set => SetProperty(ref _cpuPercent, value);
+    }
+
+    /// <summary>圆环上那两条弧画的是「过去一分钟」的起伏，一秒一格。</summary>
+    private const int HistoryLen = 60;
+    private readonly double[] _memHist = new double[HistoryLen];
+    private readonly double[] _cpuHist = new double[HistoryLen];
+    private bool _histSeeded;
+
+    [ObservableProperty] public partial IReadOnlyList<double> MemHistory { get; set; } = Array.Empty<double>();
+    [ObservableProperty] public partial IReadOnlyList<double> CpuHistory { get; set; } = Array.Empty<double>();
     [ObservableProperty] public partial string BigNumber { get; set; } = "0";
     [ObservableProperty] public partial string MaxNumber { get; set; } = "100";
     [ObservableProperty] public partial string UptimeText { get; set; } = "00:00:00";
@@ -43,6 +62,25 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] public partial bool IsSettingsOpen { get; set; }
     [ObservableProperty] public partial string EditServer { get; set; } = "";
     [ObservableProperty] public partial string EditToken { get; set; } = "";
+    [ObservableProperty] public partial string ParticleMode { get; set; } = "full";
+    [ObservableProperty] public partial int EditParticleIndex { get; set; }
+
+    /// <summary>设置里「中心点云」下拉的选项，顺序与 full / lite / off 一一对应。</summary>
+    public string[] ParticleModeOptions { get; } = { "完整（仿终末地）", "精简（省电）", "关闭" };
+
+    private static int ModeToIndex(string mode) => mode switch
+    {
+        "lite" => 1,
+        "off" => 2,
+        _ => 0,
+    };
+
+    private static string IndexToMode(int index) => index switch
+    {
+        1 => "lite",
+        2 => "off",
+        _ => "full",
+    };
 
     // ---- 连接参数来自本地配置（可在设置里改）----
     private readonly AppConfig _config = AppConfig.Load();
@@ -105,7 +143,7 @@ public partial class MainViewModel : ViewModelBase
                     SourceText = "实时";
                 }
             }
-            else if (IsLive && (DateTime.Now - _lastLiveAt).TotalSeconds > 4)
+            else if ((DateTime.Now - _lastLiveAt).TotalSeconds > 4 && SourceText != "离线")
             {
                 IsLive = false;
                 SourceText = "离线";
@@ -414,6 +452,7 @@ public partial class MainViewModel : ViewModelBase
     {
         EditServer = _config.Server;
         EditToken = _config.Token;
+        EditParticleIndex = ModeToIndex(_config.ParticleMode);
         IsSettingsOpen = true;
     }
 
@@ -423,6 +462,7 @@ public partial class MainViewModel : ViewModelBase
     {
         _config.Server = EditServer.Trim();
         _config.Token = EditToken.Trim();
+        _config.ParticleMode = IndexToMode(EditParticleIndex);
         _config.Save();
         ApplyConfig();
         IsSettingsOpen = false;
@@ -432,8 +472,14 @@ public partial class MainViewModel : ViewModelBase
     {
         _client.BaseUrl = "http://" + _config.Server;
         _client.Token = _config.Token;
+        ParticleMode = _config.ParticleMode;
         _deviceSig = "";
         _appSig = "";
+        // 必须重置在线标记：否则下一轮拉取成功时会被「已经在线」挡住，
+        // 状态文字就永远停在“连接中…”。同时把计时归零，
+        // 让连不上时能在 4 秒后才落到“离线”。
+        _lastLiveAt = DateTime.Now;
+        IsLive = false;
         SourceText = "连接中…";
     }
 
@@ -458,6 +504,26 @@ public partial class MainViewModel : ViewModelBase
     {
         Composite = Math.Clamp(_sysCpu * W_CPU + _memPct * W_MEM, 0, 100);
         BigNumber = Math.Round(Composite).ToString("0");
+        CpuPercent = _sysCpu;
+        MemPercent = _memPct;
+
+        // 弧上的历史：右移一格，把当前值推到末位（最末一格就是当前读数）
+        if (!_histSeeded)
+        {
+            // 刚启动时缓冲全是 0，画出来前半小时是空的；先用当前值铺平
+            _histSeeded = true;
+            for (int i = 0; i < HistoryLen; i++)
+            {
+                _memHist[i] = _memPct;
+                _cpuHist[i] = _sysCpu;
+            }
+        }
+        Array.Copy(_memHist, 1, _memHist, 0, HistoryLen - 1);
+        _memHist[HistoryLen - 1] = _memPct;
+        Array.Copy(_cpuHist, 1, _cpuHist, 0, HistoryLen - 1);
+        _cpuHist[HistoryLen - 1] = _sysCpu;
+        MemHistory = (double[])_memHist.Clone();
+        CpuHistory = (double[])_cpuHist.Clone();
         TagCpu = $"CPU {_sysCpu:0}%";
         TagMem = $"MEM {_memPct:0}%";
         TagComp = $"综合 {Composite:F1}%";

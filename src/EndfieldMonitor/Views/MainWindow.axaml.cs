@@ -92,6 +92,12 @@ public partial class MainWindow : Window
         string? shot = Environment.GetEnvironmentVariable("ENF_SHOT");
         if (string.IsNullOrWhiteSpace(shot)) return;
 
+        // 开发用：截图延时可通过 ENF_SHOT_DELAY（毫秒）指定，
+        // 方便在不同动画相位各拍一张做对比。
+        int delayMs = 3000;
+        if (int.TryParse(Environment.GetEnvironmentVariable("ENF_SHOT_DELAY"), out int d) && d > 0)
+            delayMs = d;
+
         DispatcherTimer.RunOnce(() =>
         {
             try
@@ -107,6 +113,6 @@ public partial class MainWindow : Window
                 // 截图失败不影响正常启动路径
             }
             Close();
-        }, TimeSpan.FromMilliseconds(3000));
+        }, TimeSpan.FromMilliseconds(delayMs));
     }
 }
