@@ -14,6 +14,9 @@ public sealed class AppConfig
     [JsonPropertyName("server")] public string Server { get; set; } = "192.168.101.14:8898";
     [JsonPropertyName("token")] public string Token { get; set; } = "";
 
+    /// <summary>中心点云开销档：full（默认，仿终末地原版）/ lite / off。</summary>
+    [JsonPropertyName("particleMode")] public string ParticleMode { get; set; } = "full";
+
     /// <summary>本次启动前是否已存在配置文件（用于决定要不要首次引导）。</summary>
     [JsonIgnore] public bool Existed { get; private set; }
 
