@@ -1,11 +1,13 @@
 package main
 
 import (
+	"fmt"
 	"math"
 	"runtime"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/shirou/gopsutil/v4/disk"
 	gnet "github.com/shirou/gopsutil/v4/net"
@@ -16,8 +18,12 @@ import (
 
 type netSample struct{ recv, sent uint64 }
 
+// 名字对不上时退回聚合值，只提醒一次，不每次采样都刷屏。
+var netFallbackOnce sync.Once
+
 // readNet 只统计主网卡，名字对不上时退回所有网卡的聚合值。
-func readNet(name string) netSample {
+func readNet() netSample {
+	name, _ := currentNetwork()
 	if name != "" {
 		if cs, err := gnet.IOCounters(true); err == nil {
 			for _, c := range cs {
@@ -26,6 +32,9 @@ func readNet(name string) netSample {
 				}
 			}
 		}
+		netFallbackOnce.Do(func() {
+			fmt.Printf("[collector] 主网卡 %q 未在计数器里找到，网络数据退回全部网卡聚合\n", name)
+		})
 	}
 	if cs, err := gnet.IOCounters(false); err == nil && len(cs) > 0 {
 		return netSample{recv: cs[0].BytesRecv, sent: cs[0].BytesSent}
@@ -33,19 +42,32 @@ func readNet(name string) netSample {
 	return netSample{}
 }
 
+// rateMbps 把两次采样的字节差换算成 Mbps。
+// 计数器回绕或网卡重置时 cur < prev，直接当 0，不然差值会翻成一个天文数字。
+func rateMbps(cur, prev uint64, dt float64) float64 {
+	if cur < prev || dt <= 0 {
+		return 0
+	}
+	return float64(cur-prev) * 8 / 1e6 / dt
+}
+
 func readNetRates(prev, cur netSample, dt float64) NetInfo {
-	down := math.Max(0, float64(cur.recv-prev.recv)*8/1e6/dt)
-	up := math.Max(0, float64(cur.sent-prev.sent)*8/1e6/dt)
-	link := static.NetLink
+	name, link := currentNetwork()
 	if link <= 0 {
 		link = 1000
+	}
+	down := rateMbps(cur.recv, prev.recv, dt)
+	up := rateMbps(cur.sent, prev.sent, dt)
+	// 单块网卡的吞吐不可能超过链路速率，超过说明这一帧不可信，丢掉
+	if math.Max(down, up) > link*1.5 {
+		down, up = 0, 0
 	}
 	util := 0.0
 	if m := math.Max(down, up); m > 0 {
 		util = math.Min(100, m/link*100)
 	}
 	return NetInfo{
-		Name: static.NetName,
+		Name: name,
 		Down: round2(down),
 		Up:   round2(up),
 		Link: link,
@@ -55,6 +77,8 @@ func readNetRates(prev, cur netSample, dt float64) NetInfo {
 
 // ================= 磁盘 =================
 
+var diskPrev map[string]disk.IOCountersStat
+
 func readDiskIO() map[string]disk.IOCountersStat {
 	m, err := disk.IOCounters()
 	if err != nil {
@@ -63,7 +87,19 @@ func readDiskIO() map[string]disk.IOCountersStat {
 	return m
 }
 
-func readDisks(prev, cur map[string]disk.IOCountersStat, dt float64) []DiskInfo {
+// initDiskSampler 只在 PDH 兜底路径需要时预热一帧。
+func initDiskSampler() {
+	if diskFallbackNeeded() {
+		diskPrev = readDiskIO()
+	}
+}
+
+func readDisks(dt float64) []DiskInfo {
+	cur := diskPrev
+	if diskFallbackNeeded() {
+		cur = readDiskIO()
+	}
+
 	out := make([]DiskInfo, 0, len(static.Disks))
 	for i, d := range static.Disks {
 		u, err := disk.Usage(d.Mount)
@@ -77,13 +113,16 @@ func readDisks(prev, cur map[string]disk.IOCountersStat, dt float64) []DiskInfo 
 		// 实测增量几乎不更新，只能当兜底。
 		if r, bu, ok := perfDiskSample(d.Letter); ok {
 			rw, busy = r, bu
-		} else if a, okA := prev[d.Letter]; okA {
+		} else if a, okA := diskPrev[d.Letter]; okA {
 			if b, okB := cur[d.Letter]; okB {
-				dBytes := float64(b.ReadBytes) - float64(a.ReadBytes) + float64(b.WriteBytes) - float64(a.WriteBytes)
-				rw = math.Max(0, dBytes) / 1048576.0 / dt
-				dMs := float64(b.ReadTime) - float64(a.ReadTime) + float64(b.WriteTime) - float64(a.WriteTime)
+				if b.ReadBytes >= a.ReadBytes && b.WriteBytes >= a.WriteBytes && dt > 0 {
+					dBytes := (b.ReadBytes - a.ReadBytes) + (b.WriteBytes - a.WriteBytes)
+					rw = float64(dBytes) / 1048576.0 / dt
+				}
+				// ReadTime/WriteTime 单位为毫秒，增量占窗口的比例即忙率
+				dMs := int64(b.ReadTime) - int64(a.ReadTime) + int64(b.WriteTime) - int64(a.WriteTime)
 				if dMs > 0 {
-					busy = math.Min(100, dMs/(dt*1000.0)*100)
+					busy = math.Min(100, float64(dMs)/(dt*1000.0)*100)
 				}
 			}
 		}
@@ -99,6 +138,8 @@ func readDisks(prev, cur map[string]disk.IOCountersStat, dt float64) []DiskInfo 
 			Model: d.Model,
 		})
 	}
+
+	diskPrev = cur
 	return out
 }
 
@@ -107,6 +148,8 @@ func readDisks(prev, cur map[string]disk.IOCountersStat, dt float64) []DiskInfo 
 
 var procCache = map[int32]*process.Process{}
 
+// collectProcs 返回全部进程（按 CPU 降序）。截断到展示条数由上层负责，
+// 因为关注服务的匹配需要看全量，不能只看榜上前几名。
 func collectProcs() []ProcInfo {
 	ps, err := process.Processes()
 	if err != nil {
@@ -172,9 +215,6 @@ func collectProcs() []ProcInfo {
 		}
 		return out[i].Mem > out[j].Mem
 	})
-	if len(out) > procLimit {
-		out = out[:procLimit]
-	}
 	return out
 }
 

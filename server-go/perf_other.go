@@ -2,11 +2,13 @@
 
 package main
 
-// 非 Windows 平台没有 PDH，磁盘/CPU 频率回落到 collect.go 里的 gopsutil 路径。
+// 非 Windows 平台没有 PDH，磁盘 IO 与 CPU 频率回落到 collect.go 里的 gopsutil 路径。
 
 func initPerf() {}
 
 func perfTick() {}
+
+func diskFallbackNeeded() bool { return true }
 
 func perfCPUFreqGHz() (float64, bool) { return 0, false }
 
