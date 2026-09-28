@@ -8,3 +8,6 @@ package main
 func collectStaticExtra(_ *staticInfo) {}
 
 func collectTasks() []TaskInfo { return nil }
+
+// selectPrimaryNetwork 非 Windows 平台不做事，保留 static.go 里的兜底值。
+func selectPrimaryNetwork(_ *staticInfo) {}

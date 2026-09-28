@@ -48,6 +48,10 @@ func collectStatic() staticInfo {
 	}
 	s.NetLink = 1000
 
+	// Windows 上改用物理网卡的名字与真实链路速率，
+	// 避免抓到虚拟网卡、速率又被写死成 1000。
+	selectPrimaryNetwork(&s)
+
 	if parts, err := disk.Partitions(false); err == nil {
 		for _, p := range parts {
 			if p.Fstype == "" || strings.Contains(strings.ToLower(strings.Join(p.Opts, ",")), "cdrom") {

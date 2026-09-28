@@ -10,8 +10,12 @@ import (
 	"strings"
 )
 
+// SMBIOS 内存类型编号（Win32_PhysicalMemory.SMBIOSMemoryType）。
+// LPDDR 系列是独立编号，板载颗粒常见 27~30，别只认 DDR3/DDR4/DDR5。
 var memTypeNames = map[int]string{
-	20: "DDR", 21: "DDR2", 24: "DDR3", 26: "DDR4", 34: "DDR5",
+	20: "DDR", 21: "DDR2", 22: "DDR2 FB-DIMM", 24: "DDR3", 26: "DDR4",
+	27: "LPDDR", 28: "LPDDR2", 29: "LPDDR3", 30: "LPDDR4",
+	34: "DDR5", 35: "LPDDR5",
 }
 
 // Get-ScheduledTask 的状态是英文枚举，转成界面统一的中文。
@@ -76,8 +80,12 @@ func collectStaticExtra(s *staticInfo) {
 			if best > 0 {
 				s.MemSpeed = fmt.Sprintf("%d MT/s", best)
 			}
-			if name, ok := memTypeNames[mems[0].SMBIOSMemoryType]; ok {
-				s.MemType = name
+			// 取第一根能映射出名字的内存条：部分机器的首条类型码是 0 或表外值
+			for _, m := range mems {
+				if name, ok := memTypeNames[m.SMBIOSMemoryType]; ok {
+					s.MemType = name
+					break
+				}
 			}
 		}
 	}
@@ -107,6 +115,36 @@ func collectStaticExtra(s *staticInfo) {
 	for i := range s.Disks {
 		s.Disks[i].Media = mediaOf(s.Disks[i].Model, phys)
 	}
+
+	// 显卡型号：排除虚拟显示适配器（Todesk / Honor / Parsec 之类），
+	// 只留真正的物理 GPU。
+	if out := runPS("Get-CimInstance Win32_VideoController | Select-Object Name | ConvertTo-Json -Compress"); out != "" {
+		type vc struct {
+			Name string `json:"Name"`
+		}
+		for _, v := range unmarshalList[vc](out) {
+			if isVirtualDisplay(v.Name) {
+				continue
+			}
+			s.GPUName = v.Name
+			break
+		}
+	}
+}
+
+// 描述里出现这些词的多半是虚拟/远程显示适配器，不是真显卡。
+var virtualDisplayWords = []string{
+	"virtual", "todesk", "honor virtual", "parsec", "spacedesk", "displaylink", "usb display",
+}
+
+func isVirtualDisplay(name string) bool {
+	low := strings.ToLower(name)
+	for _, w := range virtualDisplayWords {
+		if strings.Contains(low, w) {
+			return true
+		}
+	}
+	return false
 }
 
 // mediaOf 判断介质类型。部分盘（尤其机械盘、U 盘）不会自报 MediaType，
@@ -135,6 +173,72 @@ func mediaOf(model string, phys []winPhysDisk) string {
 	return "本地磁盘"
 }
 
+type winAdapter struct {
+	Name      string `json:"Name"`
+	Interface string `json:"InterfaceDescription"`
+	Speed     uint64 `json:"Speed"` // 链路速率，bps
+	Status    string `json:"Status"`
+}
+
+// 描述里出现这些词的多半是虚拟、隧道或远程桌面用的假网卡，
+// 真流量该走的那块一定不是它们。
+var virtualIfaceWords = []string{
+	"virtual", "vpn", "radmin", "todesk", "anydesk", "sunlogin", "oray",
+	"vmware", "hyper-v", "vethernet", "virtualbox", "loopback",
+	"wi-fi direct", "wifi direct", "bluetooth", "tailscale", "zerotier",
+	"tap-windows", "tap adapter", "npcap", "wsl",
+}
+
+func isWiredAdapter(a winAdapter) bool {
+	low := strings.ToLower(a.Interface)
+	return strings.Contains(low, "ethernet") &&
+		!strings.Contains(low, "wireless") &&
+		!strings.Contains(low, "wi-fi") &&
+		!strings.Contains(low, "wlan")
+}
+
+// selectPrimaryNetwork 挑一块真实网卡，取名字与链路速率。
+// 挑不到（全是虚拟网卡或 Get-NetAdapter 不可用）就保留 static.go 的兜底值。
+func selectPrimaryNetwork(s *staticInfo) {
+	raw := runPS("Get-NetAdapter | Where-Object Status -eq 'Up' | " +
+		"Select-Object Name,InterfaceDescription,Speed,Status | ConvertTo-Json -Compress")
+	adapters := unmarshalList[winAdapter](raw)
+	if len(adapters) == 0 {
+		return
+	}
+
+	var picked *winAdapter
+	for i := range adapters {
+		low := strings.ToLower(adapters[i].Interface)
+		virtual := false
+		for _, w := range virtualIfaceWords {
+			if strings.Contains(low, w) {
+				virtual = true
+				break
+			}
+		}
+		if virtual {
+			continue
+		}
+		if picked == nil {
+			picked = &adapters[i]
+		}
+		// 同时有有线和无线时优先有线
+		if isWiredAdapter(adapters[i]) {
+			picked = &adapters[i]
+			break
+		}
+	}
+	if picked == nil {
+		return
+	}
+
+	s.NetName = picked.Name
+	if picked.Speed > 0 {
+		s.NetLink = float64(picked.Speed) / 1e6 // bps -> Mbps
+	}
+}
+
 type winTask struct {
 	Name       string `json:"name"`
 	State      string `json:"state"`
@@ -144,34 +248,45 @@ type winTask struct {
 
 func collectTasks() []TaskInfo {
 	out := make([]TaskInfo, 0, len(cfg.watchTask))
+	if len(cfg.watchTask) == 0 {
+		return out
+	}
+
+	// 一次进程查完所有任务。逐个查会让 powershell.exe 冷启动次数等于任务数，
+	// 每个进程几百毫秒，纯属白费。
+	quoted := make([]string, len(cfg.watchTask))
+	for i, n := range cfg.watchTask {
+		quoted[i] = "'" + strings.ReplaceAll(n, "'", "''") + "'"
+	}
+	script := fmt.Sprintf(
+		"$names=@(%s); "+
+			"Get-ScheduledTask -TaskName $names -ErrorAction SilentlyContinue | ForEach-Object { "+
+			"$i=Get-ScheduledTaskInfo -TaskName $_.TaskName -ErrorAction SilentlyContinue; "+
+			"[pscustomobject]@{name=$_.TaskName; state=$_.State.ToString(); "+
+			"last_run=$(if($i.LastRunTime){$i.LastRunTime.ToString('yyyy-MM-dd HH:mm')}else{''}); "+
+			"last_result=(''+$i.LastTaskResult)} } | ConvertTo-Json -Compress",
+		strings.Join(quoted, ","))
+
+	byName := map[string]winTask{}
+	for _, w := range unmarshalList[winTask](runPS(script)) {
+		byName[strings.ToLower(w.Name)] = w
+	}
+
 	for _, name := range cfg.watchTask {
 		ti := TaskInfo{Name: name, Status: "未知", LastRun: "—", LastResult: "—"}
-
-		safe := strings.ReplaceAll(name, "'", "''")
-		script := fmt.Sprintf(
-			"$n='%s'; $t=Get-ScheduledTask -TaskName $n -ErrorAction SilentlyContinue; "+
-				"$i=Get-ScheduledTaskInfo -TaskName $n -ErrorAction SilentlyContinue; "+
-				"if($t){ ConvertTo-Json -Compress -InputObject @([pscustomobject]@{name=$n;state=$t.State.ToString();"+
-				"last_run=$(if($i.LastRunTime){$i.LastRunTime.ToString('yyyy-MM-dd HH:mm')}else{''});"+
-				"last_result=(''+$i.LastTaskResult)}) }",
-			safe)
-
-		if raw := runPS(script); raw != "" {
-			if arr := unmarshalList[winTask](raw); len(arr) > 0 {
-				w := arr[0]
-				if w.State != "" {
-					if zh, ok := taskStateNames[w.State]; ok {
-						ti.Status = zh
-					} else {
-						ti.Status = w.State
-					}
+		if w, ok := byName[strings.ToLower(name)]; ok {
+			if w.State != "" {
+				if zh, ok := taskStateNames[w.State]; ok {
+					ti.Status = zh
+				} else {
+					ti.Status = w.State
 				}
-				if w.LastRun != "" {
-					ti.LastRun = w.LastRun
-				}
-				if w.LastResult != "" {
-					ti.LastResult = w.LastResult
-				}
+			}
+			if w.LastRun != "" {
+				ti.LastRun = w.LastRun
+			}
+			if w.LastResult != "" {
+				ti.LastResult = w.LastResult
 			}
 		}
 		out = append(out, ti)

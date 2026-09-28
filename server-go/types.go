@@ -102,6 +102,7 @@ type staticInfo struct {
 	MemTotal  string
 	MemSpeed  string
 	MemType   string
+	GPUName   string
 	NetName   string
 	NetLink   float64
 	Disks     []diskStatic

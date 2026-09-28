@@ -83,6 +83,8 @@ func main() {
 			orDefault(cfg.watchName, "服务"), cfg.watchProc, cfg.watchPort, cfg.watchTask)
 	}
 
+	initPerf()
+
 	go sampleLoop()
 
 	mux := http.NewServeMux()
@@ -145,12 +147,13 @@ func sampleLoop() {
 		lastTasksAt = time.Time{}
 		tasks       []TaskInfo
 		procs       []ProcInfo
-		prevNet     = readNet()
+		prevNet     = readNet(static.NetName)
 		prevDisk    = readDiskIO()
 		prevAt      = time.Now()
 	)
 
 	for {
+		perfTick()
 		now := time.Now()
 		dt := now.Sub(prevAt).Seconds()
 		if dt < 0.2 {
@@ -158,7 +161,7 @@ func sampleLoop() {
 		}
 		prevAt = now
 
-		curNet := readNet()
+		curNet := readNet(static.NetName)
 		curDisk := readDiskIO()
 
 		if now.Sub(lastProcsAt) >= procInterval {
@@ -175,7 +178,7 @@ func sampleLoop() {
 			Interval: fastInterval.Seconds(),
 			Live:     true,
 			CPU:      readCPU(),
-			GPU:      GPUInfo{Name: "—"},
+			GPU:      readGPU(),
 			Mem:      readMem(),
 			Disks:    readDisks(prevDisk, curDisk, dt),
 			Net:      readNetRates(prevNet, curNet, dt),
@@ -227,9 +230,12 @@ func readCPU() CPUInfo {
 	if v, err := cpu.Percent(0, false); err == nil && len(v) > 0 {
 		util = round1(v[0])
 	}
-	freq := 0.0
-	if v, err := cpu.Info(); err == nil && len(v) > 0 && v[0].Mhz > 0 {
-		freq = round2(v[0].Mhz / 1000.0)
+	// 实时频率走性能计数器（Processor Frequency）。
+	// gopsutil 的 cpu.Info() 在 Windows 上给的是标称上限，不是当前频率，
+	// 所以不再把它当实时值用。
+	freq := static.CPUBase
+	if f, ok := perfCPUFreqGHz(); ok {
+		freq = f
 	}
 	return CPUInfo{
 		Name:    static.CPUName,
@@ -239,6 +245,20 @@ func readCPU() CPUInfo {
 		Base:    static.CPUBase,
 		Max:     static.CPUMax,
 	}
+}
+
+func readGPU() GPUInfo {
+	g := GPUInfo{Name: "—"}
+	if static.GPUName != "" {
+		g.Name = static.GPUName
+	}
+	if util, memMB, ok := perfGPUSample(); ok {
+		g.OK = true
+		g.Util = round1(util)
+		used := round1(memMB)
+		g.MemUsed = &used
+	}
+	return g
 }
 
 func round1(v float64) float64 { return float64(int(v*10+0.5)) / 10 }
