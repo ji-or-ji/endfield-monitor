@@ -5,10 +5,12 @@ package main
 import (
 	"syscall"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 var (
-	modUser32                    = syscall.NewLazyDLL("user32.dll")
+	modUser32                    = windows.NewLazySystemDLL("user32.dll")
 	procEnumWindows              = modUser32.NewProc("EnumWindows")
 	procGetWindowTextW           = modUser32.NewProc("GetWindowTextW")
 	procGetWindowThreadProcessID = modUser32.NewProc("GetWindowThreadProcessId")

@@ -94,18 +94,16 @@ type TaskInfo struct {
 
 // staticInfo 是启动时只采集一次的硬件信息。
 type staticInfo struct {
-	Host      string
-	CPUName   string
-	Threads   int
-	CPUMax    float64
-	CPUBase   float64
-	MemTotal  string
-	MemSpeed  string
-	MemType   string
-	GPUName   string
-	NetName   string
-	NetLink   float64
-	Disks     []diskStatic
+	Host     string
+	CPUName  string
+	Threads  int
+	CPUMax   float64
+	CPUBase  float64
+	MemTotal string
+	MemSpeed string
+	MemType  string
+	GPUName  string
+	Disks    []diskStatic
 }
 
 type diskStatic struct {
@@ -113,5 +111,4 @@ type diskStatic struct {
 	Mount  string
 	Model  string
 	Media  string
-	Phys   string
 }

@@ -34,24 +34,6 @@ func collectStatic() staticInfo {
 		s.MemTotal = fmt.Sprintf("%.1f GB", float64(vm.Total)/(1024*1024*1024))
 	}
 
-	if ifs, err := gnet.Interfaces(); err == nil {
-		for _, itf := range ifs {
-			if len(itf.Addrs) == 0 || strings.HasPrefix(itf.Name, "Loopback") {
-				continue
-			}
-			s.NetName = itf.Name
-			break
-		}
-	}
-	if s.NetName == "" {
-		s.NetName = "网络"
-	}
-	s.NetLink = 1000
-
-	// Windows 上改用物理网卡的名字与真实链路速率，
-	// 避免抓到虚拟网卡、速率又被写死成 1000。
-	selectPrimaryNetwork(&s)
-
 	if parts, err := disk.Partitions(false); err == nil {
 		for _, p := range parts {
 			if p.Fstype == "" || strings.Contains(strings.ToLower(strings.Join(p.Opts, ",")), "cdrom") {
@@ -69,5 +51,16 @@ func collectStatic() staticInfo {
 	return s
 }
 
-// collectStaticExtra 由平台文件实现：Windows 用一次 WMI 查询补内存条与磁盘型号，
-// 其他平台不做事（型号缺失时客户端显示占位符）。
+// fallbackNetwork 遍历接口，取第一个非回环且带地址的，速率未知按 1000 估算。
+// Windows 上真选网卡由 detectNetwork 走 Get-NetAdapter，这里只是最后的兜底。
+func fallbackNetwork() (string, float64) {
+	if ifs, err := gnet.Interfaces(); err == nil {
+		for _, itf := range ifs {
+			if len(itf.Addrs) == 0 || strings.HasPrefix(itf.Name, "Loopback") {
+				continue
+			}
+			return itf.Name, 1000
+		}
+	}
+	return "网络", 1000
+}

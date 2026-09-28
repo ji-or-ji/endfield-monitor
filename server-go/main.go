@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -17,9 +18,10 @@ import (
 
 const (
 	fastInterval = 1 * time.Second  // CPU / 内存 / 磁盘 / 网络
-	procInterval = 2 * time.Second  // 进程列表
+	procInterval = 2 * time.Second  // 进程列表与关注服务
 	taskInterval = 60 * time.Second // 计划任务等慢查询
-	procLimit    = 40
+	netInterval  = 60 * time.Second // 主网卡链路速率刷新
+	procLimit    = 24               // 快照里带的进程条数，与客户端展示一致
 )
 
 type config struct {
@@ -38,6 +40,12 @@ var (
 
 	stateMu sync.RWMutex
 	snap    *Snapshot
+
+	// 慢采集（进程、计划任务）单独跑，结果缓存在这里，避免拖慢 1 秒的快采样节拍。
+	collectMu sync.RWMutex
+	procsAll  []ProcInfo
+	tasksAll  []TaskInfo
+	service   *ServiceInfo
 )
 
 func splitCSV(s string) []string {
@@ -73,7 +81,13 @@ func main() {
 
 	log.SetFlags(0)
 	fmt.Println("[collector] 读取静态硬件信息（仅此一次）…")
-	static = collectStatic()
+	// 静态采集与网卡探测彼此独立，并行跑，免得串起来等两轮慢查询
+	var startupWg sync.WaitGroup
+	startupWg.Add(2)
+	go func() { defer startupWg.Done(); static = collectStatic() }()
+	go func() { defer startupWg.Done(); setNetwork(detectNetwork()) }()
+	startupWg.Wait()
+
 	fmt.Printf("[collector] 主机: %s\n", static.Host)
 	fmt.Printf("[collector] CPU: %s（%d 线程）\n", static.CPUName, static.Threads)
 	fmt.Printf("[collector] 内存: %s %s\n", static.MemTotal, static.MemType)
@@ -83,8 +97,17 @@ func main() {
 			orDefault(cfg.watchName, "服务"), cfg.watchProc, cfg.watchPort, cfg.watchTask)
 	}
 
-	initPerf()
+	name, link := currentNetwork()
+	fmt.Printf("[collector] 主网卡: %s (%.0f Mbps)\n", name, link)
 
+	initPerf()
+	initDiskSampler()
+
+	go procLoop()
+	if len(cfg.watchTask) > 0 {
+		go taskLoop()
+	}
+	go netLoop()
 	go sampleLoop()
 
 	mux := http.NewServeMux()
@@ -107,9 +130,106 @@ func main() {
 	})
 
 	addr := fmt.Sprintf("%s:%d", cfg.host, cfg.port)
+	if cfg.token == "" && cfg.host != "127.0.0.1" && cfg.host != "localhost" {
+		fmt.Println("[collector] 警告: 未设置 --token 且监听在非本机地址，局域网内任何设备都能读到快照")
+	}
 	fmt.Printf("[collector] 已监听 http://%s/snapshot (token=%s)\n",
 		addr, map[bool]string{true: "已设置", false: "未设置"}[cfg.token != ""])
 	log.Fatal(http.ListenAndServe(addr, mux))
+}
+
+// ================= 后台采集 =================
+
+// procLoop 每 2 秒采一次进程与关注服务，放进缓存。
+func procLoop() {
+	for {
+		ps := collectProcs()
+
+		var svc *ServiceInfo
+		if len(cfg.watchProc) > 0 || len(cfg.watchPort) > 0 || len(cfg.watchTask) > 0 {
+			svc = collectService(ps)
+		}
+
+		collectMu.Lock()
+		procsAll = ps
+		service = svc
+		collectMu.Unlock()
+
+		time.Sleep(procInterval)
+	}
+}
+
+// taskLoop 每 60 秒刷一次计划任务状态。
+func taskLoop() {
+	for {
+		ts := collectTasks()
+		collectMu.Lock()
+		tasksAll = ts
+		collectMu.Unlock()
+		time.Sleep(taskInterval)
+	}
+}
+
+// netLoop 定期重探主网卡：Wi-Fi 会中途重新协商速率。
+func netLoop() {
+	for {
+		time.Sleep(netInterval)
+		setNetwork(detectNetwork())
+	}
+}
+
+func sampleLoop() {
+	// CPU 百分比需要至少两次调用才能出差值，先预热
+	_, _ = cpu.Percent(0, false)
+
+	prevNet := readNet()
+	prevAt := time.Now()
+
+	ticker := time.NewTicker(fastInterval)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		perfTick()
+		now := time.Now()
+		dt := now.Sub(prevAt).Seconds()
+		if dt < 0.2 {
+			dt = 0.2
+		}
+		prevAt = now
+
+		curNet := readNet()
+
+		collectMu.RLock()
+		procs := procsAll
+		tasks := tasksAll
+		svc := service
+		collectMu.RUnlock()
+
+		// 快照里只带前 procLimit 个进程；服务匹配用的是全量列表
+		snapProcs := procs
+		if len(snapProcs) > procLimit {
+			snapProcs = snapProcs[:procLimit]
+		}
+
+		s := &Snapshot{
+			Ts:       float64(now.UnixMilli()) / 1000.0,
+			Interval: fastInterval.Seconds(),
+			Live:     true,
+			CPU:      readCPU(),
+			GPU:      readGPU(),
+			Mem:      readMem(),
+			Disks:    readDisks(dt),
+			Net:      readNetRates(prevNet, curNet, dt),
+			Procs:    snapProcs,
+			Server:   readServer(svc, tasks),
+		}
+
+		prevNet = curNet
+
+		stateMu.Lock()
+		snap = s
+		stateMu.Unlock()
+	}
 }
 
 func orDefault(s, def string) string {
@@ -123,12 +243,12 @@ func authorized(r *http.Request) bool {
 	if cfg.token == "" {
 		return true
 	}
-	if a := r.Header.Get("Authorization"); strings.HasPrefix(a, "Bearer ") {
-		if strings.TrimSpace(strings.TrimPrefix(a, "Bearer ")) == cfg.token {
-			return true
-		}
+	a := r.Header.Get("Authorization")
+	if !strings.HasPrefix(a, "Bearer ") {
+		return false
 	}
-	return r.URL.Query().Get("token") == cfg.token
+	got := strings.TrimSpace(strings.TrimPrefix(a, "Bearer "))
+	return subtle.ConstantTimeCompare([]byte(got), []byte(cfg.token)) == 1
 }
 
 func writeJSON(w http.ResponseWriter, code int, v any) {
@@ -138,74 +258,21 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
-func sampleLoop() {
-	// CPU 百分比需要至少两次调用才能出差值，先预热
-	_, _ = cpu.Percent(0, false)
-
-	var (
-		lastProcsAt = time.Time{}
-		lastTasksAt = time.Time{}
-		tasks       []TaskInfo
-		procs       []ProcInfo
-		prevNet     = readNet(static.NetName)
-		prevDisk    = readDiskIO()
-		prevAt      = time.Now()
-	)
-
-	for {
-		perfTick()
-		now := time.Now()
-		dt := now.Sub(prevAt).Seconds()
-		if dt < 0.2 {
-			dt = 0.2
-		}
-		prevAt = now
-
-		curNet := readNet(static.NetName)
-		curDisk := readDiskIO()
-
-		if now.Sub(lastProcsAt) >= procInterval {
-			lastProcsAt = now
-			procs = collectProcs()
-		}
-		if len(cfg.watchTask) > 0 && now.Sub(lastTasksAt) >= taskInterval {
-			lastTasksAt = now
-			tasks = collectTasks()
-		}
-
-		s := &Snapshot{
-			Ts:       float64(now.UnixMilli()) / 1000.0,
-			Interval: fastInterval.Seconds(),
-			Live:     true,
-			CPU:      readCPU(),
-			GPU:      readGPU(),
-			Mem:      readMem(),
-			Disks:    readDisks(prevDisk, curDisk, dt),
-			Net:      readNetRates(prevNet, curNet, dt),
-			Procs:    procs,
-			Server:   readServer(procs, tasks),
-		}
-
-		prevNet, prevDisk = curNet, curDisk
-
-		stateMu.Lock()
-		snap = s
-		stateMu.Unlock()
-
-		time.Sleep(fastInterval)
-	}
-}
-
-func readServer(procs []ProcInfo, tasks []TaskInfo) *ServerInfo {
+func readServer(svc *ServiceInfo, tasks []TaskInfo) *ServerInfo {
 	up, _ := host.Uptime()
 	srv := &ServerInfo{
 		Host:        static.Host,
 		UptimeHours: float64(up) / 3600.0,
 	}
-	if len(cfg.watchProc) > 0 || len(cfg.watchPort) > 0 || len(cfg.watchTask) > 0 {
-		svc := collectService(procs)
-		svc.Tasks = tasks
-		srv.Service = svc
+	if svc != nil {
+		// 复制一份再挂任务，避免改动 procLoop 正在维护的缓存对象
+		c := *svc
+		if tasks == nil {
+			c.Tasks = []TaskInfo{}
+		} else {
+			c.Tasks = tasks
+		}
+		srv.Service = &c
 	}
 	return srv
 }
@@ -231,8 +298,7 @@ func readCPU() CPUInfo {
 		util = round1(v[0])
 	}
 	// 实时频率走性能计数器（Processor Frequency）。
-	// gopsutil 的 cpu.Info() 在 Windows 上给的是标称上限，不是当前频率，
-	// 所以不再把它当实时值用。
+	// gopsutil 的 cpu.Info() 在 Windows 上给的是标称上限，不是当前频率。
 	freq := static.CPUBase
 	if f, ok := perfCPUFreqGHz(); ok {
 		freq = f
