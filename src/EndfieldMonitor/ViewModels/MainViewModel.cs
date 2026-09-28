@@ -227,7 +227,7 @@ public partial class MainViewModel : ViewModelBase
 
     private void ApplyDisksAndNet(Snapshot s)
     {
-        var keys = new List<string> { "cpu", "mem" };
+        var keys = new List<string> { "cpu", "gpu", "mem" };
         for (int i = 0; i < s.Disks.Count; i++) keys.Add("disk-" + i);
         keys.Add("net");
         string sig = string.Join("|", keys);
@@ -257,6 +257,22 @@ public partial class MainViewModel : ViewModelBase
 
             Devices.Add(new DeviceRowViewModel
             {
+                Key = "gpu", Type = "gpu", Name = s.Gpu.Name ?? "显卡",
+                Sub = s.Gpu.Ok ? $"利用率 {s.Gpu.Util:0}%" : "未采集",
+                Icon = IconLibrary.Get("gpu"), Util = s.Gpu.Util,
+                Cur1Label = "占用", Cur1Value = $"{s.Gpu.Util:0}%",
+                Cur2Label = "显存", Cur2Value = s.Gpu.MemUsed is { } gmu ? $"{gmu:0} MB" : "—",
+                Spec = s.Gpu.Name ?? "—",
+                Detail =
+                {
+                    new DetailRowViewModel { Label = "型号", Value = s.Gpu.Name ?? "—" },
+                    new DetailRowViewModel { Label = "利用率", Value = $"{s.Gpu.Util:0}%" },
+                    new DetailRowViewModel { Label = "显存占用", Value = s.Gpu.MemUsed is { } gm2 ? $"{gm2:0} MB" : "—" },
+                },
+            });
+
+            Devices.Add(new DeviceRowViewModel
+            {
                 Key = "mem", Type = "mem", Name = "内存",
                 Sub = $"已用 {s.Mem.Used} / {s.Mem.Total} GB",
                 Icon = IconLibrary.Get("mem"), Util = s.Mem.Pct,
@@ -279,7 +295,7 @@ public partial class MainViewModel : ViewModelBase
                     Key = "disk-" + i, Type = "disk", Name = d.Name ?? ("磁盘 " + i),
                     Sub = $"已用 {d.Used} / {d.Total} GB",
                     Icon = IconLibrary.Get("disk"), Util = d.Util,
-                    Cur1Label = "占用", Cur1Value = $"{d.Util:0}%",
+                    Cur1Label = "活动", Cur1Value = $"{d.Util:0}%",
                     Cur2Label = "读写", Cur2Value = d.Rw ?? "0 MB/s",
                     Spec = $"{d.Total:0.#} GB {d.Media}".Trim(),
                     Detail =
@@ -322,6 +338,12 @@ public partial class MainViewModel : ViewModelBase
                         d.Sub = $"{s.Cpu.Threads} 线程 · {s.Cpu.Util:0}% 负载";
                         d.Cur1Value = $"{s.Cpu.Util:0}%";
                         d.Cur2Value = $"{s.Cpu.Freq:0.00} GHz";
+                        break;
+                    case "gpu":
+                        d.Util = s.Gpu.Util;
+                        d.Sub = s.Gpu.Ok ? $"利用率 {s.Gpu.Util:0}%" : "未采集";
+                        d.Cur1Value = $"{s.Gpu.Util:0}%";
+                        d.Cur2Value = s.Gpu.MemUsed is { } gu ? $"{gu:0} MB" : "—";
                         break;
                     case "mem":
                         d.Util = s.Mem.Pct;
@@ -411,6 +433,13 @@ public partial class MainViewModel : ViewModelBase
         });
         Devices.Add(new DeviceRowViewModel
         {
+            Key = "gpu", Type = "gpu", Name = "Intel UHD Graphics", Sub = "利用率 21%",
+            Icon = IconLibrary.Get("gpu"), Util = 21,
+            Cur1Label = "占用", Cur1Value = "21%", Cur2Label = "显存", Cur2Value = "—",
+            Spec = "Intel UHD Graphics",
+        });
+        Devices.Add(new DeviceRowViewModel
+        {
             Key = "mem", Type = "mem", Name = "内存", Sub = "已用 9.8 / 16.0 GB",
             Icon = IconLibrary.Get("mem"), Util = 61,
             Cur1Label = "占用", Cur1Value = "61%", Cur2Label = "速度", Cur2Value = "3200 MT/s",
@@ -420,7 +449,7 @@ public partial class MainViewModel : ViewModelBase
         {
             Key = "disk-0", Type = "disk", Name = "磁盘 0 (C:)", Sub = "已用 486 / 1024 GB",
             Icon = IconLibrary.Get("disk"), Util = 12,
-            Cur1Label = "占用", Cur1Value = "12%", Cur2Label = "读写", Cur2Value = "126 MB/s",
+            Cur1Label = "活动", Cur1Value = "12%", Cur2Label = "读写", Cur2Value = "126 MB/s",
             Spec = "1024 GB NVMe",
         });
         Devices.Add(new DeviceRowViewModel
