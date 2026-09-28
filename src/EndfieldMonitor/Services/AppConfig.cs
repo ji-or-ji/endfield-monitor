@@ -25,6 +25,27 @@ public sealed class AppConfig
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "EnfieldMonitor", "config.json");
 
+    /// <summary>
+    /// 规整用户填的服务器地址：剥掉多余的 http(s):// 前缀（含连续误加）、
+    /// 结尾的斜杠与路径、以及首尾空白。客户端只会再拼一次 "http://"，
+    /// 所以这里必须先收干净，否则会拼成 http://http://… 连不上。
+    /// </summary>
+    public static string NormalizeServer(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return string.Empty;
+        var s = raw.Trim();
+        while (true)
+        {
+            if (s.StartsWith("http://", StringComparison.OrdinalIgnoreCase)) s = s[7..];
+            else if (s.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) s = s[8..];
+            else break;
+            s = s.TrimStart();
+        }
+        int slash = s.IndexOf('/'); // 只保留 host:port，丢掉 /snapshot 这类尾巴
+        if (slash >= 0) s = s[..slash];
+        return s.Trim();
+    }
+
     public static AppConfig Load()
     {
         try
@@ -34,6 +55,7 @@ public sealed class AppConfig
                 var cfg = JsonSerializer.Deserialize<AppConfig>(File.ReadAllText(FilePath));
                 if (cfg is not null)
                 {
+                    cfg.Server = NormalizeServer(cfg.Server);
                     cfg.Existed = true;
                     return cfg;
                 }
