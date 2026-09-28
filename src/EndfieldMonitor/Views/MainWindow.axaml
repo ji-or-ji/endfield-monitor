@@ -359,7 +359,7 @@
 
                     <StackPanel Spacing="6">
                         <TextBlock Text="服务器地址" FontSize="13" Foreground="{StaticResource TextDimBrush}" />
-                        <TextBox Text="{Binding EditServer}" Watermark="192.168.101.14:8898" FontSize="14" />
+                        <TextBox Text="{Binding EditServer}" PlaceholderText="192.168.101.14:8898" FontSize="14" />
                     </StackPanel>
 
                     <StackPanel Spacing="6">

@@ -106,7 +106,7 @@ public partial class MainWindow : Window
                 int h = Math.Max(1, (int)ClientSize.Height);
                 using var rtb = new RenderTargetBitmap(new PixelSize(w, h), new Vector(96, 96));
                 rtb.Render(this);
-                rtb.Save(shot);
+                rtb.Save(shot, PngBitmapEncoderOptions.Default);
             }
             catch
             {
