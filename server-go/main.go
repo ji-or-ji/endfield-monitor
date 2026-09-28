@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -60,7 +61,8 @@ func splitCSV(s string) []string {
 }
 
 func main() {
-	var procCSV, portCSV, taskCSV string
+	var procCSV, portCSV, taskCSV, configPath string
+	var setup bool
 	flag.StringVar(&cfg.host, "host", "0.0.0.0", "监听地址")
 	flag.IntVar(&cfg.port, "port", 8898, "监听端口")
 	flag.StringVar(&cfg.token, "token", "", "共享口令，留空则不校验（仅本地调试用）")
@@ -68,16 +70,46 @@ func main() {
 	flag.StringVar(&procCSV, "watch-procs", "", "进程名关键字，逗号分隔，如 maibot,napcat")
 	flag.StringVar(&portCSV, "watch-ports", "", "要盯的端口，逗号分隔，如 6099,7998")
 	flag.StringVar(&taskCSV, "watch-tasks", "", "计划任务名，逗号分隔")
+	flag.StringVar(&configPath, "config", "", "配置文件路径，默认取 exe 同目录的 enf-collector.json")
+	flag.BoolVar(&setup, "setup", false, "交互式生成配置文件，写完即退出")
 	flag.Parse()
 
-	cfg.watchProc = splitCSV(procCSV)
-	for _, s := range splitCSV(portCSV) {
-		var p int
-		if _, err := fmt.Sscanf(s, "%d", &p); err == nil {
-			cfg.watchPort = append(cfg.watchPort, p)
-		}
+	// 记住哪些开关是命令行显式给的，它们要压过配置文件
+	set := map[string]bool{}
+	flag.Visit(func(f *flag.Flag) { set[f.Name] = true })
+
+	cfgPath := configPath
+	if cfgPath == "" {
+		cfgPath = defaultConfigPath()
 	}
+
+	// 向导只负责写配置，不常驻
+	if setup {
+		if err := runSetup(cfgPath); err != nil {
+			fmt.Printf("[collector] 生成配置失败: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	// 先按命令行解析，再让配置文件补齐没被显式指定的项
+	cfg.watchProc = splitCSV(procCSV)
+	cfg.watchPort = parsePorts(portCSV)
 	cfg.watchTask = splitCSV(taskCSV)
+
+	file, found, err := loadConfigFile(cfgPath)
+	if err != nil {
+		fmt.Printf("[collector] 读取配置失败: %v\n", err)
+		os.Exit(1)
+	}
+	if found {
+		applyFile(&cfg, file, set)
+		fmt.Printf("[collector] 已加载配置: %s\n", cfgPath)
+	} else if configPath != "" {
+		// 明确指定了路径却找不到，属于配置错误，直接报错退出
+		fmt.Printf("[collector] 指定的配置文件不存在: %s\n", configPath)
+		os.Exit(1)
+	}
 
 	log.SetFlags(0)
 	fmt.Println("[collector] 读取静态硬件信息（仅此一次）…")
@@ -131,11 +163,21 @@ func main() {
 
 	addr := fmt.Sprintf("%s:%d", cfg.host, cfg.port)
 	if cfg.token == "" && cfg.host != "127.0.0.1" && cfg.host != "localhost" {
-		fmt.Println("[collector] 警告: 未设置 --token 且监听在非本机地址，局域网内任何设备都能读到快照")
+		fmt.Println("[collector] 警告: 未设置 token 且监听在非本机地址，局域网内任何设备都能读到快照")
 	}
 	fmt.Printf("[collector] 已监听 http://%s/snapshot (token=%s)\n",
 		addr, map[bool]string{true: "已设置", false: "未设置"}[cfg.token != ""])
-	log.Fatal(http.ListenAndServe(addr, mux))
+
+	// 对外服务一律带超时，读、写、空闲都不无限等
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
+	log.Fatal(srv.ListenAndServe())
 }
 
 // ================= 后台采集 =================

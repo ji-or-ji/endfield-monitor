@@ -191,6 +191,7 @@ func collectProcs() []ProcInfo {
 			cpuPct = 0
 		}
 
+		// 可执行文件路径：客户端目前未消费，预留给按路径区分同名进程 / 白名单过滤
 		exe, _ := p.Exe()
 		out = append(out, ProcInfo{
 			Pid:   p.Pid,
