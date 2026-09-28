@@ -489,17 +489,19 @@ public partial class MainViewModel : ViewModelBase
 
     public void SaveSettings()
     {
-        _config.Server = EditServer.Trim();
+        // 地址先归一：剥掉手填的 http(s):// 与尾巴斜杠，存档和显示都用干净值
+        _config.Server = AppConfig.NormalizeServer(EditServer);
         _config.Token = EditToken.Trim();
         _config.ParticleMode = IndexToMode(EditParticleIndex);
         _config.Save();
+        EditServer = _config.Server;
         ApplyConfig();
         IsSettingsOpen = false;
     }
 
     private void ApplyConfig()
     {
-        _client.BaseUrl = "http://" + _config.Server;
+        _client.BaseUrl = "http://" + AppConfig.NormalizeServer(_config.Server);
         _client.Token = _config.Token;
         ParticleMode = _config.ParticleMode;
         _deviceSig = "";
