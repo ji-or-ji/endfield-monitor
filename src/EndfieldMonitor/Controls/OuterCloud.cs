@@ -127,7 +127,8 @@ public sealed class OuterCloud : Control
         double cs = Math.Cos(rot), sn = Math.Sin(rot);
         double tilt = 0.34 + 0.20 * Math.Sin(_t * 0.11);
         double ct = Math.Cos(tilt), st = Math.Sin(tilt);
-        double breath = 0.030 * (0.5 + 0.5 * Math.Sin(_t * 0.9) - 0.5);
+        // 与 CenterBlob 用同一条呼吸曲线，两层才一起起伏（系数、频率都要一致）
+        double breath = 0.030 * Math.Sin(_t * 0.9);
 
         Span<double> wc = stackalloc double[WaveCount];
         Span<double> ws = stackalloc double[WaveCount];

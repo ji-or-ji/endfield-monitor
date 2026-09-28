@@ -17,3 +17,7 @@ reference/
 # Go 服务端构建产物与运行日志
 server-go/*.exe
 server-go/*.log
+
+# Python 字节码（server/ 下的旧采集端曾把 __pycache__ 一并提交进来）
+__pycache__/
+*.pyc
