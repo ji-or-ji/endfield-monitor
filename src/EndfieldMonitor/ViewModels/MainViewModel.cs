@@ -4,7 +4,6 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Media;
-using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using EndfieldMonitor.Models;
 using EndfieldMonitor.Services;
@@ -114,42 +113,23 @@ public partial class MainViewModel : ViewModelBase
     // ---- 连接参数来自本地配置（可在设置里改）----
     private readonly AppConfig _config = AppConfig.Load();
     private readonly SnapshotClient _client = new();
-    private readonly Random _rng = new();
     private DateTime _lastLiveAt = DateTime.MinValue;
     private DateTime _lastRefresh = DateTime.Now;
     private string _deviceSig = "";
     private string _appSig = "";
-    private double _sysCpu = 32, _memPct = 60;
+    private double _sysCpu, _memPct;
     private double _cpuFreq, _memUsed, _memTotal;
-    private readonly DateTime _demoStart = DateTime.Now;
 
-    private static readonly (string Name, string Sub, string Icon, double Cpu, double Mem)[] DemoApps =
-    {
-        ("Microsoft Edge",     "18 个标签页",       "browser",  16.4, 2840),
-        ("Visual Studio Code", "工作区: zmd-usage", "code",     11.1, 1720),
-        ("Steam",              "后台待机",          "video",    14.8, 1180),
-        ("Discord",            "3 个服务器",        "chat",      7.6,  620),
-        ("MySQL",              "本地数据库服务",    "db",        5.9,  940),
-        ("Spotify",            "正在播放",          "music",     2.1,  310),
-        ("Windows Terminal",   "pwsh × 2",          "terminal",  0.9,   86),
-        ("File Explorer",      "此电脑",            "folder",    1.2,  120),
-    };
+    /// <summary>是否拿到过有效快照。为假时一切数据位显占位符。</summary>
+    private bool _hasData;
 
     public MainViewModel()
     {
-        SeedDemoApps();
-        SeedDemoDevices();
-        foreach (var d in Devices) d.SeedHistory(_rng);
-        UpdateBars();
-        UpdateOverview();
+        // 起始即离线形态：没连上之前一律显示占位符，不摆演示数据
+        ClearToOffline();
 
         ApplyConfig();
         if (!_config.Existed) OpenSettings();
-
-        // 演示数据只在离线时继续抖动
-        var demo = new DispatcherTimer(TimeSpan.FromMilliseconds(500), DispatcherPriority.Background,
-            (_, _) => { if (!IsLive) TickDemo(); });
-        demo.Start();
 
         _ = PollLoop();
     }
@@ -177,6 +157,7 @@ public partial class MainViewModel : ViewModelBase
             {
                 IsLive = false;
                 SourceText = "离线";
+                ClearToOffline();
             }
 
             await Task.Delay(1000);
@@ -185,6 +166,7 @@ public partial class MainViewModel : ViewModelBase
 
     private void ApplySnapshot(Snapshot s)
     {
+        _hasData = true;
         _sysCpu = s.Cpu.Util;
         _memPct = s.Mem.Pct;
         _cpuFreq = s.Cpu.Freq;
@@ -413,84 +395,98 @@ public partial class MainViewModel : ViewModelBase
         return $"{totalHours:D2}:{ts.Minutes:D2}:{ts.Seconds:D2}";
     }
 
-    // ================= 演示回落 =================
-    private void TickDemo()
+    // ================= 离线形态 =================
+
+    /// <summary>
+    /// 掉线时不回落演示数据：清掉所有数据，各显示位一律给占位符，
+    /// 免得看上去像真的。
+    /// </summary>
+    private void ClearToOffline()
     {
-        foreach (var a in Apps)
-        {
-            a.Cpu = Math.Clamp(a.Cpu + (_rng.NextDouble() - 0.5) * 8, 0, 42);
-            a.Mem = Math.Clamp(a.Mem + (_rng.NextDouble() - 0.5) * 300, 60, 4200);
-        }
-        UpdateBars();
+        _hasData = false;
+        Apps.Clear();
+        SeedOfflineDevices();
 
-        _sysCpu = Math.Clamp(Apps.Sum(x => x.Cpu) * 0.42 + (_rng.NextDouble() - 0.5) * 4, 3, 98);
-        _memPct = Math.Clamp(_memPct + (_rng.NextDouble() - 0.5) * 3, 20, 92);
-        UpdateOverview();
+        _sysCpu = 0;
+        _memPct = 0;
+        _cpuFreq = 0;
+        _memUsed = 0;
+        _memTotal = 0;
 
-        foreach (var d in Devices)
-        {
-            double amp = d.Type == "disk" ? 4 : 9;
-            d.Util = Math.Clamp(d.Util + (_rng.NextDouble() - 0.5) * amp, 1, 97);
-            d.PushHistory(d.Util);
-        }
-
-        var up = DateTime.Now - _demoStart;
-        UptimeText = $"{(int)up.TotalHours:D2}:{up.Minutes:D2}:{up.Seconds:D2}";
+        Composite = 0;
+        CpuPercent = 0;
+        MemPercent = 0;
+        BigNumber = "-";
+        UptimeText = "-";
         UptimeCaption = "已运行";
+        LastRefreshText = "-";
+        TargetText = "-";
 
-        var sec = (int)(DateTime.Now - _lastRefresh).TotalSeconds;
-        LastRefreshText = sec < 3 ? "刚刚" : $"{sec} 秒前";
+        Array.Clear(_cpuHist, 0, _cpuHist.Length);
+        Array.Clear(_memHist, 0, _memHist.Length);
+        _histSeeded = false;
+        MemHistory = (double[])_memHist.Clone();
+        CpuHistory = (double[])_cpuHist.Clone();
+
+        UpdateTags();
     }
 
-    // ================= 演示数据种子 =================
-    private void SeedDemoApps()
+    /// <summary>离线时的设备骨架：固定几类，数值全部是占位符。</summary>
+    private void SeedOfflineDevices()
     {
-        foreach (var (name, sub, icon, cpu, mem) in DemoApps)
+        Devices.Clear();
+
+        Devices.Add(new DeviceRowViewModel
         {
-            Apps.Add(new AppRowViewModel
+            Key = "cpu", Type = "cpu", Name = "处理器", Sub = "-",
+            Icon = IconLibrary.Get("cpu"),
+            Cur1Label = "占用", Cur1Value = "-", Cur2Label = "速度", Cur2Value = "-",
+            Spec = "-",
+            Detail =
             {
-                Name = name, Sub = sub, Icon = IconLibrary.Get(icon),
-                Cpu = cpu, Mem = mem,
-            });
-        }
-    }
+                new DetailRowViewModel { Label = "型号", Value = "-" },
+                new DetailRowViewModel { Label = "逻辑处理器", Value = "-" },
+            },
+        });
 
-    private void SeedDemoDevices()
-    {
         Devices.Add(new DeviceRowViewModel
         {
-            Key = "cpu", Type = "cpu", Name = "处理器", Sub = "16 线程 · x64 架构",
-            Icon = IconLibrary.Get("cpu"), Util = 34,
-            Cur1Label = "占用", Cur1Value = "34%", Cur2Label = "速度", Cur2Value = "3.62 GHz",
-            Spec = "最高 4.20 GHz",
+            Key = "gpu", Type = "gpu", Name = "显卡", Sub = "-",
+            Icon = IconLibrary.Get("gpu"),
+            Cur1Label = "占用", Cur1Value = "-", Cur2Label = "显存", Cur2Value = "-",
+            Spec = "-",
+            Detail =
+            {
+                new DetailRowViewModel { Label = "型号", Value = "-" },
+                new DetailRowViewModel { Label = "显存占用", Value = "-" },
+            },
         });
+
         Devices.Add(new DeviceRowViewModel
         {
-            Key = "gpu", Type = "gpu", Name = "Intel UHD Graphics", Sub = "利用率 21%",
-            Icon = IconLibrary.Get("gpu"), Util = 21,
-            Cur1Label = "占用", Cur1Value = "21%", Cur2Label = "显存", Cur2Value = "—",
-            Spec = "Intel UHD Graphics",
+            Key = "mem", Type = "mem", Name = "内存", Sub = "-",
+            Icon = IconLibrary.Get("mem"),
+            Cur1Label = "占用", Cur1Value = "-", Cur2Label = "速度", Cur2Value = "-",
+            Spec = "-",
+            Detail =
+            {
+                new DetailRowViewModel { Label = "容量", Value = "-" },
+                new DetailRowViewModel { Label = "类型", Value = "-" },
+                new DetailRowViewModel { Label = "频率", Value = "-" },
+            },
         });
+
         Devices.Add(new DeviceRowViewModel
         {
-            Key = "mem", Type = "mem", Name = "内存", Sub = "已用 9.8 / 16.0 GB",
-            Icon = IconLibrary.Get("mem"), Util = 61,
-            Cur1Label = "占用", Cur1Value = "61%", Cur2Label = "速度", Cur2Value = "3200 MT/s",
-            Spec = "16 GB DDR4",
-        });
-        Devices.Add(new DeviceRowViewModel
-        {
-            Key = "disk-0", Type = "disk", Name = "磁盘 0 (C:)", Sub = "已用 486 / 1024 GB",
-            Icon = IconLibrary.Get("disk"), Util = 12,
-            Cur1Label = "活动", Cur1Value = "12%", Cur2Label = "读写", Cur2Value = "126 MB/s",
-            Spec = "1024 GB NVMe",
-        });
-        Devices.Add(new DeviceRowViewModel
-        {
-            Key = "net", Type = "net", Name = "网络", Sub = "以太网 · 1000 Mbps",
-            Icon = IconLibrary.Get("net"), Util = 18,
-            Cur1Label = "下行", Cur1Value = "12.4 Mbps", Cur2Label = "上行", Cur2Value = "3.1 Mbps",
-            Spec = "1000 Mbps",
+            Key = "net", Type = "net", Name = "网络", Sub = "-",
+            Icon = IconLibrary.Get("net"),
+            Cur1Label = "下行", Cur1Value = "-", Cur2Label = "上行", Cur2Value = "-",
+            Spec = "-",
+            Detail =
+            {
+                new DetailRowViewModel { Label = "适配器", Value = "-" },
+                new DetailRowViewModel { Label = "链路速度", Value = "-" },
+            },
         });
     }
 
@@ -604,6 +600,14 @@ public partial class MainViewModel : ViewModelBase
     /// </summary>
     private void UpdateTags()
     {
+        if (!_hasData)
+        {
+            TagCpu = "CPU -";
+            TagMem = "MEM -";
+            TagComp = "综合 -";
+            return;
+        }
+
         TagCpu = ShowAbsolute ? $"CPU {_cpuFreq:0.00} GHz" : $"CPU {_sysCpu:0}%";
         TagMem = ShowAbsolute ? $"MEM {_memUsed:0.#} / {_memTotal:0.#} GB" : $"MEM {_memPct:0}%";
         TagComp = $"综合 {Composite:F1}%";
