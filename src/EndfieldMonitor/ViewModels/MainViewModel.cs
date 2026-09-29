@@ -690,14 +690,13 @@ public partial class MainViewModel : ViewModelBase
             return;
         }
 
-        // 底栏固定给百分比汇总；具体值交给环上那两个角标
-        TagCpu = $"CPU {_sysCpu:0}%";
-        TagMem = $"MEM {_memPct:0}%";
-        TagComp = $"综合 {Composite:F1}%";
-
-        // 环上两个角标：各自贴近自己那条弧（橘=CPU、蓝=内存）
+        // 环上与底栏永远一正一反：环上摆具体值，底栏就摆百分比，反之亦然
         ChipCpu = ShowAbsolute ? $"{_cpuFreq:0.00} GHz" : $"{_sysCpu:0}%";
         ChipMem = ShowAbsolute ? $"{_memUsed:0.#} GB" : $"{_memPct:0}%";
+
+        TagCpu = ShowAbsolute ? $"CPU {_sysCpu:0}%" : $"CPU {_cpuFreq:0.00} GHz";
+        TagMem = ShowAbsolute ? $"MEM {_memPct:0}%" : $"MEM {_memUsed:0.#} / {_memTotal:0.#} GB";
+        TagComp = $"综合 {Composite:F1}%";
     }
 }
 
