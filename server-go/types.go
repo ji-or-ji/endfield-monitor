@@ -21,6 +21,7 @@ type CPUInfo struct {
 	Threads int     `json:"threads"`
 	Util    float64 `json:"util"`
 	Freq    float64 `json:"freq"`
+	Peak    float64 `json:"peak"` // 观测到的最高实时频率；一直没超过标称就为零
 	Base    float64 `json:"base"`
 	Max     float64 `json:"max"`
 }
@@ -63,12 +64,16 @@ type NetInfo struct {
 
 // BatteryInfo 是电池状态。电池为笔记本/手持设备才有的东西，
 // 台式机（或桌面 Linux）没有电池，Present 为 false，其它字段无意义。
+// 容量类字段来自启动时的一次性采集，数值单位是毫瓦时（mWh）。
 type BatteryInfo struct {
 	Present     bool    `json:"present"`
 	Percent     float64 `json:"percent"`      // 0~100；-1 表示未知
 	Charging    bool    `json:"charging"`     // 正在充电
 	OnAC        bool    `json:"on_ac"`        // 接着电源
 	SecondsLeft float64 `json:"seconds_left"` // 预计剩余秒数；0 表示未知
+	FullMWh     float64 `json:"full_mwh"`     // 满充容量；0 表示未知
+	DesignMWh   float64 `json:"design_mwh"`   // 设计容量；0 表示未知
+	HealthPct   float64 `json:"health_pct"`   // 满充 / 设计；0 表示未知
 }
 
 type ProcInfo struct {
@@ -105,16 +110,19 @@ type TaskInfo struct {
 
 // staticInfo 是启动时只采集一次的硬件信息。
 type staticInfo struct {
-	Host     string
-	CPUName  string
-	Threads  int
-	CPUMax   float64
-	CPUBase  float64
-	MemTotal string
-	MemSpeed string
-	MemType  string
-	GPUName  string
-	Disks    []diskStatic
+	Host        string
+	CPUName     string
+	Threads     int
+	CPUMax      float64
+	CPUBase     float64
+	MemTotal    string
+	MemSpeed    string
+	MemType     string
+	GPUName     string
+	GPUMemMB    float64 // 显卡专用显存总量；核显读不到时为 0
+	Disks       []diskStatic
+	BatteryFull int // 满充容量（mWh）
+	BatteryDes  int // 设计容量（mWh）
 }
 
 type diskStatic struct {

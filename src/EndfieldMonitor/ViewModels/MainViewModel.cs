@@ -261,13 +261,13 @@ public partial class MainViewModel : ViewModelBase
                 Icon = IconLibrary.Get("cpu"), Util = s.Cpu.Util,
                 Cur1Label = "占用", Cur1Value = $"{s.Cpu.Util:0}%",
                 Cur2Label = "速度", Cur2Value = $"{s.Cpu.Freq:0.00} GHz",
-                Spec = $"最高 {s.Cpu.Max:0.00} GHz",
+                Spec = $"基准 {s.Cpu.Base:0.00} GHz",
                 Detail =
                 {
                     new DetailRowViewModel { Label = "型号", Value = s.Cpu.Name ?? "—" },
                     new DetailRowViewModel { Label = "逻辑处理器", Value = s.Cpu.Threads + " 线程" },
-                    new DetailRowViewModel { Label = "基准频率", Value = s.Cpu.Base + " GHz" },
-                    new DetailRowViewModel { Label = "最高频率", Value = s.Cpu.Max + " GHz" },
+                    new DetailRowViewModel { Label = "基准频率", Value = $"{s.Cpu.Base:0.00} GHz" },
+                    new DetailRowViewModel { Label = "实测峰值", Value = CpuPeakText(s.Cpu) },
                 },
             });
 
@@ -277,13 +277,14 @@ public partial class MainViewModel : ViewModelBase
                 Sub = s.Gpu.Ok ? $"利用率 {s.Gpu.Util:0}%" : "未采集",
                 Icon = IconLibrary.Get("gpu"), Util = s.Gpu.Util,
                 Cur1Label = "占用", Cur1Value = $"{s.Gpu.Util:0}%",
-                Cur2Label = "显存", Cur2Value = s.Gpu.MemUsed is { } gmu ? $"{gmu:0} MB" : "—",
+                Cur2Label = "显存", Cur2Value = GpuMemText(s.Gpu),
                 Spec = s.Gpu.Name ?? "—",
                 Detail =
                 {
                     new DetailRowViewModel { Label = "型号", Value = s.Gpu.Name ?? "—" },
                     new DetailRowViewModel { Label = "利用率", Value = $"{s.Gpu.Util:0}%" },
                     new DetailRowViewModel { Label = "显存占用", Value = s.Gpu.MemUsed is { } gm2 ? $"{gm2:0} MB" : "—" },
+                    new DetailRowViewModel { Label = "显存总量", Value = s.Gpu.MemTotal > 0 ? $"{s.Gpu.MemTotal:0} MB" : "核显或驱动未上报" },
                 },
             });
 
@@ -351,13 +352,15 @@ public partial class MainViewModel : ViewModelBase
                     Util = bat.Percent < 0 ? 0 : bat.Percent,
                     Cur1Label = "电量", Cur1Value = bat.Percent < 0 ? "—" : $"{bat.Percent:0}%",
                     Cur2Label = "剩余", Cur2Value = FormatLeft(bat.SecondsLeft),
-                    // 电池没有可报的“规格”（容量/健康度暂时采不到），留空比重复更有意义
+                    Spec = BatterySpecText(bat),
                     Detail =
                     {
                         new DetailRowViewModel { Label = "电量", Value = bat.Percent < 0 ? "—" : $"{bat.Percent:0}%" },
                         new DetailRowViewModel { Label = "状态", Value = BatteryStateText(bat) },
                         new DetailRowViewModel { Label = "剩余时间", Value = FormatLeft(bat.SecondsLeft) },
-                        new DetailRowViewModel { Label = "供电", Value = bat.OnAC ? "外接电源" : "电池" },
+                        new DetailRowViewModel { Label = "满充容量", Value = WhText(bat.FullMWh) },
+                        new DetailRowViewModel { Label = "设计容量", Value = WhText(bat.DesignMWh) },
+                        new DetailRowViewModel { Label = "健康度", Value = bat.HealthPct > 0 ? $"{bat.HealthPct:0.0}%" : "—" },
                     },
                 });
             }
@@ -382,7 +385,7 @@ public partial class MainViewModel : ViewModelBase
                         d.Util = s.Gpu.Util;
                         d.Sub = s.Gpu.Ok ? $"利用率 {s.Gpu.Util:0}%" : "未采集";
                         d.Cur1Value = $"{s.Gpu.Util:0}%";
-                        d.Cur2Value = s.Gpu.MemUsed is { } gu ? $"{gu:0} MB" : "—";
+                        d.Cur2Value = GpuMemText(s.Gpu);
                         break;
                     case "mem":
                         d.Util = s.Mem.Pct;
@@ -417,6 +420,26 @@ public partial class MainViewModel : ViewModelBase
 
         foreach (var d in Devices) d.PushHistory(d.Util);
     }
+
+    /// <summary>睿频上限在系统里拿不到可靠值，只能报实际观测到的峰值。</summary>
+    private static string CpuPeakText(CpuInfo c) =>
+        c.Peak > c.Base + 0.01 ? $"{c.Peak:0.00} GHz（运行中观测）" : "尚未观测到超过基准";
+
+    /// <summary>显存：总量读得到时给出“占用 / 总量”。</summary>
+    private static string GpuMemText(GpuInfo g)
+    {
+        bool hasUsed = g.MemUsed is { };
+        if (g.MemTotal > 0)
+        {
+            return hasUsed ? $"{g.MemUsed:0} / {g.MemTotal:0} MB" : $"— / {g.MemTotal:0} MB";
+        }
+        return hasUsed ? $"{g.MemUsed:0} MB" : "—";
+    }
+
+    private static string WhText(double mwh) => mwh > 0 ? $"{mwh / 1000.0:0.0} Wh" : "—";
+
+    /// <summary>电池的“规格”一栏：满充容量。</summary>
+    private static string BatterySpecText(BatteryInfo b) => b.FullMWh > 0 ? $"{b.FullMWh / 1000.0:0.0} Wh" : "";
 
     /// <summary>电池状态的短描述。</summary>
     private static string BatteryStateText(BatteryInfo b)

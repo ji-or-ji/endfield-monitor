@@ -262,7 +262,7 @@ func sampleLoop() {
 			Mem:      readMem(),
 			Disks:    readDisks(dt),
 			Net:      readNetRates(prevNet, curNet, dt),
-			Battery:  readBattery(),
+			Battery:  readBatteryInfo(),
 			Procs:    snapProcs,
 			Server:   readServer(svc, tasks),
 		}
@@ -335,6 +335,10 @@ func readMem() MemInfo {
 	}
 }
 
+// 观测到过的最高实时频率。睿频上限在 Windows 上没有可靠的标准接口，
+// 与其编一个，不如把实际见到的峰值报出来。
+var cpuPeakGHz float64
+
 func readCPU() CPUInfo {
 	util := 0.0
 	if v, err := cpu.Percent(0, false); err == nil && len(v) > 0 {
@@ -345,12 +349,16 @@ func readCPU() CPUInfo {
 	freq := static.CPUBase
 	if f, ok := perfCPUFreqGHz(); ok {
 		freq = f
+		if f > cpuPeakGHz {
+			cpuPeakGHz = f
+		}
 	}
 	return CPUInfo{
 		Name:    static.CPUName,
 		Threads: static.Threads,
 		Util:    util,
 		Freq:    freq,
+		Peak:    cpuPeakGHz,
 		Base:    static.CPUBase,
 		Max:     static.CPUMax,
 	}
@@ -361,6 +369,7 @@ func readGPU() GPUInfo {
 	if static.GPUName != "" {
 		g.Name = static.GPUName
 	}
+	g.MemTotal = round1(static.GPUMemMB)
 	if util, memMB, ok := perfGPUSample(); ok {
 		g.OK = true
 		g.Util = round1(util)
@@ -368,6 +377,20 @@ func readGPU() GPUInfo {
 		g.MemUsed = &used
 	}
 	return g
+}
+
+// readBatteryInfo 把平台相关的实时状态与启动时取到的容量信息拼在一起。
+func readBatteryInfo() BatteryInfo {
+	b := readBattery()
+	if !b.Present {
+		return b
+	}
+	b.FullMWh = float64(static.BatteryFull)
+	b.DesignMWh = float64(static.BatteryDes)
+	if b.FullMWh > 0 && b.DesignMWh > 0 {
+		b.HealthPct = round1(b.FullMWh / b.DesignMWh * 100)
+	}
+	return b
 }
 
 func round1(v float64) float64 { return float64(int(v*10+0.5)) / 10 }

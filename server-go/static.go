@@ -48,6 +48,9 @@ func collectStatic() staticInfo {
 	}
 
 	collectStaticExtra(&s)
+
+	// 电池容量只在启动时取一次（WMI / sysfs，运行期不重复查）
+	s.BatteryDes, s.BatteryFull = batteryCapacity()
 	return s
 }
 

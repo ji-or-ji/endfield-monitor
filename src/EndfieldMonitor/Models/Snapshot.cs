@@ -32,6 +32,7 @@ public sealed class CpuInfo
     [JsonPropertyName("threads")] public int Threads { get; set; }
     [JsonPropertyName("util")]    public double Util { get; set; }
     [JsonPropertyName("freq")]    public double Freq { get; set; }
+    [JsonPropertyName("peak")]    public double Peak { get; set; }
     [JsonPropertyName("base")]    public double Base { get; set; }
     [JsonPropertyName("max")]     public double Max { get; set; }
 }
@@ -84,6 +85,9 @@ public sealed class BatteryInfo
     [JsonPropertyName("charging")]     public bool Charging { get; set; }
     [JsonPropertyName("on_ac")]        public bool OnAC { get; set; }
     [JsonPropertyName("seconds_left")] public double SecondsLeft { get; set; }
+    [JsonPropertyName("full_mwh")]     public double FullMWh { get; set; }
+    [JsonPropertyName("design_mwh")]   public double DesignMWh { get; set; }
+    [JsonPropertyName("health_pct")]   public double HealthPct { get; set; }
 }
 
 public sealed class ProcInfo
