@@ -105,6 +105,12 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>设置面板里那个勾选框的编辑值。</summary>
     [ObservableProperty] public partial bool EditBatchCloud { get; set; } = true;
 
+    /// <summary>生效中的「具体数值」开关：开则 CPU 显频率、内存显已用/总量。</summary>
+    [ObservableProperty] public partial bool ShowAbsolute { get; set; }
+
+    /// <summary>设置面板里的编辑值。</summary>
+    [ObservableProperty] public partial bool EditShowAbsolute { get; set; }
+
     // ---- 连接参数来自本地配置（可在设置里改）----
     private readonly AppConfig _config = AppConfig.Load();
     private readonly SnapshotClient _client = new();
@@ -114,6 +120,7 @@ public partial class MainViewModel : ViewModelBase
     private string _deviceSig = "";
     private string _appSig = "";
     private double _sysCpu = 32, _memPct = 60;
+    private double _cpuFreq, _memUsed, _memTotal;
     private readonly DateTime _demoStart = DateTime.Now;
 
     private static readonly (string Name, string Sub, string Icon, double Cpu, double Mem)[] DemoApps =
@@ -180,6 +187,9 @@ public partial class MainViewModel : ViewModelBase
     {
         _sysCpu = s.Cpu.Util;
         _memPct = s.Mem.Pct;
+        _cpuFreq = s.Cpu.Freq;
+        _memUsed = s.Mem.Used;
+        _memTotal = s.Mem.Total;
         UpdateOverview();
         ApplyDisksAndNet(s);
         ApplyApps(s.Procs);
@@ -506,6 +516,7 @@ public partial class MainViewModel : ViewModelBase
         EditToken = _config.Token;
         EditParticleIndex = ModeToIndex(_config.ParticleMode);
         EditBatchCloud = _config.BatchCloud;
+        EditShowAbsolute = _config.ShowAbsolute;
         IsSettingsOpen = true;
     }
 
@@ -518,6 +529,7 @@ public partial class MainViewModel : ViewModelBase
         _config.Token = EditToken.Trim();
         _config.ParticleMode = IndexToMode(EditParticleIndex);
         _config.BatchCloud = EditBatchCloud;
+        _config.ShowAbsolute = EditShowAbsolute;
         _config.Save();
         EditServer = _config.Server;
         ApplyConfig();
@@ -530,6 +542,8 @@ public partial class MainViewModel : ViewModelBase
         _client.Token = _config.Token;
         ParticleMode = _config.ParticleMode;
         BatchCloud = _config.BatchCloud;
+        ShowAbsolute = _config.ShowAbsolute;
+        UpdateTags();
         _deviceSig = "";
         _appSig = "";
         // 必须重置在线标记：否则下一轮拉取成功时会被「已经在线」挡住，
@@ -581,8 +595,17 @@ public partial class MainViewModel : ViewModelBase
         _cpuHist[HistoryLen - 1] = _sysCpu;
         MemHistory = (double[])_memHist.Clone();
         CpuHistory = (double[])_cpuHist.Clone();
-        TagCpu = $"CPU {_sysCpu:0}%";
-        TagMem = $"MEM {_memPct:0}%";
+        UpdateTags();
+    }
+
+    /// <summary>
+    /// 底部的 CPU / 内存 / 综合标签。切到具体数值时，综合仍保留占比，
+    /// 免得把“整体如何”这一眼丢掉了。
+    /// </summary>
+    private void UpdateTags()
+    {
+        TagCpu = ShowAbsolute ? $"CPU {_cpuFreq:0.00} GHz" : $"CPU {_sysCpu:0}%";
+        TagMem = ShowAbsolute ? $"MEM {_memUsed:0.#} / {_memTotal:0.#} GB" : $"MEM {_memPct:0}%";
         TagComp = $"综合 {Composite:F1}%";
     }
 }
