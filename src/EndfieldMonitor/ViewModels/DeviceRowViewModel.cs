@@ -46,14 +46,6 @@ public partial class DeviceRowViewModel : ObservableObject
         History = (double[])_buf.Clone();
     }
 
-    /// <summary>启动时用抖动值把历史填满，避免开局走势图一片空白。</summary>
-    public void SeedHistory(Random rng)
-    {
-        for (int i = 0; i < HistoryLen; i++)
-            _buf[i] = Math.Clamp(Util * (0.55 + rng.NextDouble() * 0.5), 0, 100);
-        History = (double[])_buf.Clone();
-    }
-
     /// <summary>重建行时把上一份走势接过来，避免图表归零。</summary>
     public void AdoptHistory(IReadOnlyList<double>? old)
     {
