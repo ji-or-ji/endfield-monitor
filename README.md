@@ -1,7 +1,10 @@
 # EnfieldMonitor · 局域网设备监视台
 
-界面风格致敬《明日方舟：终末地》，用来在局域网里实时查看一台 Windows 机器的运行状况。
-不开远程桌面，打开客户端就能看见。
+界面风格致敬《明日方舟：终末地》，用来实时查看一台机器的运行状况：局域网里跨机看，
+或者就在本机看。不开远程桌面，打开客户端就能看见。
+
+被监视的那一端以 **Windows 能力最全**——内存条、磁盘介质、显卡、计划任务这些依赖 WMI 的项都有；
+也有 Linux 版，同一份代码交叉编译，但**尚未在真机验证**，上述依赖 WMI 的项会留空。
 
 > 界面设计（配色、电量环、版式、动效语言）参考并致敬 **zmd-manager / 终末地管理器**：
 > https://github.com/QinAnze/zmd-manager
@@ -29,17 +32,21 @@
 ## 运行原理
 
 ```
-[被监视机器]                          [局域网任意设备]
+[被监视的那台]                          [任意一台设备，也可以就是同一台]
 enf-collector.exe    ──HTTP/JSON──▶  EnfieldMonitor.exe
 (Go, 1s 采样一次)                     (Avalonia 渲染, 1s 轮询)
 ```
 
 服务端只读、无写操作，向局域网提供一个 `/snapshot` 端点；客户端凭共享口令拉取，
 掉线时自动回落演示数据并标记为「离线」。
+同机自看时，把地址填成 `127.0.0.1:8898` 即可。
 
 ## 服务端部署
 
 服务端是 Go 写的单文件程序，**不需要装任何运行时**。
+
+> 下文里，配置向导与配置文件是跨平台通用的；防火墙规则与开机自启两节是 **Windows 写法**，
+> 在 Linux 上得换成对应的做法。
 
 ### 第一步：跑一次配置向导
 
@@ -106,6 +113,7 @@ enf-collector.exe    ──HTTP/JSON──▶  EnfieldMonitor.exe
 ### 采样开销
 
 静态信息（CPU 型号、内存条、磁盘型号、显卡）只在启动时取一次，之后全部走原生调用；
+其中内存条类型、磁盘介质、显卡型号这几项依赖 WMI，只在 Windows 上取。
 进程列表 2 秒一次，计划任务 60 秒一次，主网卡链路速率 60 秒重探一次。
 常驻开销很小：约 30 MB 工作集、百分之零点几的 CPU。
 
@@ -132,12 +140,16 @@ Register-ScheduledTask -TaskName 'EnfieldMonitor' -Action $a -Trigger $t -Princi
 
 ## 构建
 
-### 服务端（需要 Go 1.21+）
+### 服务端（需要 Go 1.27+，以 go.mod 声明为准）
 
 ```powershell
 cd server-go
 go build -ldflags "-s -w" -o enf-collector.exe .
 # -s -w 去掉符号表与调试信息，体积约小三分之一（10.5 MB -> 7.2 MB）
+
+# 交叉编译 Linux 版（发行版里那一份就是这么来的）
+$env:GOOS="linux"; $env:GOARCH="amd64"
+go build -ldflags "-s -w" -o enf-collector-linux-amd64 .
 ```
 
 ### 客户端（需要 .NET SDK 10）
