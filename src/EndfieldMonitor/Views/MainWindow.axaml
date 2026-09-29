@@ -390,7 +390,7 @@
 
                     <StackPanel Spacing="6">
                         <CheckBox Content="显示具体数值" IsChecked="{Binding EditShowAbsolute}" FontSize="13" />
-                        <TextBlock Text="勾上后 CPU 显实时频率、内存显已用/总量；圆心那个数字始终是综合占比。"
+                        <TextBlock Text="勾上后环上那两个角标显示实际数值（CPU 实时频率、内存已用）；下方汇总始终是百分比。"
                                    FontSize="11" Foreground="{StaticResource TextDimBrush}" TextWrapping="Wrap" />
                     </StackPanel>
 
