@@ -118,12 +118,15 @@
             </Border>
 
             <!-- ============ 内容 ============ -->
-            <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
-                <StackPanel Margin="28,26,28,40" Spacing="30">
+            <!-- 内容区不滚动：整体按窗口尺寸自适应，只有列表内部才允许滚 -->
+            <Grid Grid.Row="1" Margin="28,22,28,22" RowDefinitions="*,Auto" RowSpacing="18">
 
                     <!-- 页一：综合占用 -->
-                    <Grid ColumnDefinitions="470,*" ColumnSpacing="26" IsVisible="{Binding IsOverviewPage}">
-                        <Grid Grid.Column="0" Height="520">
+                    <Grid Grid.Row="0" ColumnDefinitions="470,*" ColumnSpacing="26" IsVisible="{Binding IsOverviewPage}">
+                        <!-- 环与两个角标整体等比缩放：窗口不够高时缩小，而不是顶出布局 -->
+                        <Viewbox Grid.Column="0" Stretch="Uniform" StretchDirection="DownOnly"
+                                 HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Grid Width="470" Height="520">
                             <Grid Width="470" Height="470" HorizontalAlignment="Center" VerticalAlignment="Center">
                                 <!-- 内盘底色在最下：环要压在点云之上，就不能把内盘留在环里一起画上去 -->
                                 <Ellipse Width="252" Height="252" Fill="#EDEDEA" />
@@ -177,10 +180,11 @@
                                 </Border>
                             </Grid>
                         </Grid>
+                        </Viewbox>
 
                         <Border Grid.Column="1" Background="{StaticResource PanelBrush}"
                                 BorderBrush="{StaticResource LineBrush}" BorderThickness="1"
-                                Padding="18,20,20,22" MaxHeight="566">
+                                Padding="18,20,20,22">
                             <Grid RowDefinitions="Auto,Auto,*">
                                 <StackPanel Grid.Row="0" Orientation="Horizontal">
                                     <TextBlock Text="应用概况" FontSize="17" LetterSpacing="3" Foreground="#4C4C48"
@@ -246,8 +250,8 @@
                     </Grid>
 
                     <!-- 页二：设备性能 -->
-                    <StackPanel IsVisible="{Binding IsPerfPage}" Spacing="0">
-                        <Border Background="#D15A5A56" CornerRadius="6" Padding="12,10" BoxShadow="0 2 8 0 #2E000000">
+                    <Grid Grid.Row="0" RowDefinitions="Auto,*" IsVisible="{Binding IsPerfPage}">
+                        <Border Grid.Row="0" Background="#D15A5A56" CornerRadius="6" Padding="12,10" BoxShadow="0 2 8 0 #2E000000">
                             <Grid ColumnDefinitions="185,*,175,175">
                                 <TextBlock Grid.Column="0" Text="设备信息" Foreground="White" FontSize="13" />
                                 <TextBlock Grid.Column="1" Text="占用率走势" Foreground="White" FontSize="13"
@@ -257,7 +261,8 @@
                             </Grid>
                         </Border>
 
-                        <ItemsControl ItemsSource="{Binding Devices}" Margin="0,14,0,0">
+                        <ScrollViewer Grid.Row="1" Margin="0,14,0,0" VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding Devices}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:DeviceRowViewModel">
                                     <Border Background="{StaticResource Panel2Brush}" BorderBrush="#E0E0DC"
@@ -305,10 +310,11 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                    </StackPanel>
+                        </ScrollViewer>
+                    </Grid>
 
                     <!-- 底栏 -->
-                    <Border Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource LineBrush}"
+                    <Border Grid.Row="1" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource LineBrush}"
                             BorderThickness="1" Padding="18,14" BoxShadow="0 2 8 0 #10000000">
                         <Grid ColumnDefinitions="*,Auto">
                             <StackPanel Grid.Column="0" Spacing="8" VerticalAlignment="Center">
@@ -338,8 +344,7 @@
                             </Button>
                         </Grid>
                     </Border>
-                </StackPanel>
-            </ScrollViewer>
+            </Grid>
         </Grid>
 
         <!-- ============ 连接设置覆盖层 ============ -->
