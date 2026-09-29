@@ -82,6 +82,29 @@ public partial class MainViewModel : ViewModelBase
         _ => "full",
     };
 
+    /// <summary>窗口是否在前台。由窗口的 Activated / Deactivated 更新，失焦时点云降级。</summary>
+    private bool _windowFocused = true;
+    public bool WindowFocused
+    {
+        get => _windowFocused;
+        set
+        {
+            if (SetProperty(ref _windowFocused, value))
+            {
+                OnPropertyChanged(nameof(CloudIdle));
+            }
+        }
+    }
+
+    /// <summary>窗口不在前台：点云降级成灰块并放慢刷新（off 档本来就停着，不受影响）。</summary>
+    public bool CloudIdle => !_windowFocused;
+
+    /// <summary>生效中的批量绘制开关，绑到外圈点云。</summary>
+    [ObservableProperty] public partial bool BatchCloud { get; set; } = true;
+
+    /// <summary>设置面板里那个勾选框的编辑值。</summary>
+    [ObservableProperty] public partial bool EditBatchCloud { get; set; } = true;
+
     // ---- 连接参数来自本地配置（可在设置里改）----
     private readonly AppConfig _config = AppConfig.Load();
     private readonly SnapshotClient _client = new();
@@ -482,6 +505,7 @@ public partial class MainViewModel : ViewModelBase
         EditServer = _config.Server;
         EditToken = _config.Token;
         EditParticleIndex = ModeToIndex(_config.ParticleMode);
+        EditBatchCloud = _config.BatchCloud;
         IsSettingsOpen = true;
     }
 
@@ -493,6 +517,7 @@ public partial class MainViewModel : ViewModelBase
         _config.Server = AppConfig.NormalizeServer(EditServer);
         _config.Token = EditToken.Trim();
         _config.ParticleMode = IndexToMode(EditParticleIndex);
+        _config.BatchCloud = EditBatchCloud;
         _config.Save();
         EditServer = _config.Server;
         ApplyConfig();
@@ -504,6 +529,7 @@ public partial class MainViewModel : ViewModelBase
         _client.BaseUrl = "http://" + AppConfig.NormalizeServer(_config.Server);
         _client.Token = _config.Token;
         ParticleMode = _config.ParticleMode;
+        BatchCloud = _config.BatchCloud;
         _deviceSig = "";
         _appSig = "";
         // 必须重置在线标记：否则下一轮拉取成功时会被「已经在线」挡住，
