@@ -17,6 +17,9 @@ public sealed class AppConfig
     /// <summary>中心点云开销档：full（默认，仿终末地原版）/ lite / off。</summary>
     [JsonPropertyName("particleMode")] public string ParticleMode { get; set; } = "full";
 
+    /// <summary>点云是否用一次性 DrawVertices 批量提交（走 GPU 顶点）。关掉则回退逐点路径。</summary>
+    [JsonPropertyName("batchCloud")] public bool BatchCloud { get; set; } = true;
+
     /// <summary>本次启动前是否已存在配置文件（用于决定要不要首次引导）。</summary>
     [JsonIgnore] public bool Existed { get; private set; }
 

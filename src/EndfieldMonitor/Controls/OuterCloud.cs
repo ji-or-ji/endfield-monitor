@@ -2,28 +2,33 @@ using System;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.Rendering.SceneGraph;
+using Avalonia.Skia;
 using Avalonia.Threading;
+using SkiaSharp;
 
 namespace EndfieldMonitor.Controls;
 
 /// <summary>
-/// 外围那圈点云。就是先前定下来的那一版：
+/// 外围那圈点云。
 ///
-///   起伏用六股方向、频率、速度互不通约的行波叠加（不是两条正弦，
-///   周期短的波看久了会露出条纹），再叠一层缓慢的 X 轴点头——
-///   只绕 Y 轴转的话每个点的 y 永远不变，上下不对称会被永久锁死。
-///   点的半径按一个**空间连续**的低频疙瘩场起伏，而不是各自随机：
-///   各自随机会互相抵消，平均完还是一个规整的球。
-///   点不是圆的，是沿径向被拽过的小条，长度随它此刻被推的速度。
+/// 两种画法：
+///   Batch = true  —— 把每个点摊成两个三角形，整团**一次 DrawVertices** 交给 GPU。
+///                    此前是 5500 个独立四边形路径，Skia 要逐条在 CPU 上细分，
+///                    那才是真正的开销大头。
+///   Batch = false —— 保留原来的逐点路径画法，作为出问题时的退路。
 ///
-/// 性能：sin(a − t·s) 拆成 sin(a)cos(t·s) − cos(a)sin(t·s)，a 是每点固定量、
-/// 预先存表，于是每帧只剩几次三角函数；再按景深分 16 档合批绘制。
+/// 另外两种省电状态（窗口不在前台时由上层置位）：
+///   Cheap = true  —— 不画点云，改画和中心同款、但更大的灰块（外一圈内一圈）。
+///   Freeze = true —— 停止推进时间，只留最后一帧。
 /// </summary>
 public sealed class OuterCloud : Control
 {
     private const int MaxPoints = 5500;
+    private const int LitePoints = 1800;
     private const int WaveCount = 6;
     private const int BreathBuckets = 8;
+    private const int DepthBuckets = 16;
     private const double Design = 290;
     private const double BaseRadius = 126;
 
@@ -41,6 +46,12 @@ public sealed class OuterCloud : Control
     public static readonly StyledProperty<string> ModeProperty =
         AvaloniaProperty.Register<OuterCloud, string>(nameof(Mode), "full");
 
+    public static readonly StyledProperty<bool> BatchProperty =
+        AvaloniaProperty.Register<OuterCloud, bool>(nameof(Batch), true);
+
+    public static readonly StyledProperty<bool> IdleProperty =
+        AvaloniaProperty.Register<OuterCloud, bool>(nameof(Idle));
+
     /// <summary>full / lite / off</summary>
     public string Mode
     {
@@ -48,10 +59,25 @@ public sealed class OuterCloud : Control
         set => SetValue(ModeProperty, value);
     }
 
+    /// <summary>true 用一次性 DrawVertices，false 回退到逐点路径。</summary>
+    public bool Batch
+    {
+        get => GetValue(BatchProperty);
+        set => SetValue(BatchProperty, value);
+    }
+
+    /// <summary>窗口不在前台时为真：不再画点云，改画灰块并放慢刷新。</summary>
+    public bool Idle
+    {
+        get => GetValue(IdleProperty);
+        set => SetValue(IdleProperty, value);
+    }
+
     static OuterCloud()
     {
-        AffectsRender<OuterCloud>(ModeProperty);
-        ModeProperty.Changed.AddClassHandler<OuterCloud>((c, _) => c.OnModeChanged());
+        AffectsRender<OuterCloud>(BatchProperty, IdleProperty);
+        ModeProperty.Changed.AddClassHandler<OuterCloud>((c, _) => c.SyncTimer());
+        IdleProperty.Changed.AddClassHandler<OuterCloud>((c, _) => c.SyncTimer());
     }
 
     private readonly (double X, double Y, double Z)[] _pts = new (double, double, double)[MaxPoints];
@@ -60,13 +86,19 @@ public sealed class OuterCloud : Control
     private readonly double[] _cosA = new double[MaxPoints * WaveCount];
     private readonly double[] _brSin = new double[MaxPoints];
     private readonly double[] _brCos = new double[MaxPoints];
-    private readonly IBrush[] _brushes = new IBrush[16];
-    private readonly StreamGeometry[] _batch = new StreamGeometry[16];
+    private readonly IBrush[] _brushes = new IBrush[DepthBuckets];
+    private readonly StreamGeometry[] _batch = new StreamGeometry[DepthBuckets];
+
     private DispatcherTimer? _timer;
     private double _t;
     private bool _off;
 
-    private int PointCount => Mode == "lite" ? 1800 : MaxPoints;
+    private int PointCount => Mode == "lite" ? LitePoints : MaxPoints;
+
+    private int BlobSteps => Mode == "lite" ? 120 : 260;
+
+    /// <summary>失焦状态下的刷新间隔。实测每秒 60 次重绘本身才是开销大头，降频即省。</summary>
+    private static readonly TimeSpan IdleInterval = TimeSpan.FromMilliseconds(150);
 
     private static TimeSpan IntervalFor(string mode) =>
         mode == "lite" ? TimeSpan.FromMilliseconds(33) : TimeSpan.FromMilliseconds(16);
@@ -104,9 +136,9 @@ public sealed class OuterCloud : Control
         }
 
         // 按景深由淡到实。点多时每点一实会叠成块，整体压淡才有雾感。
-        for (int i = 0; i < 16; i++)
+        for (int i = 0; i < DepthBuckets; i++)
         {
-            double depth = i / 15.0;
+            double depth = i / (double)(DepthBuckets - 1);
             byte a = (byte)((0.06 + depth * 0.24) * 255);
             _brushes[i] = new SolidColorBrush(Color.FromArgb(a, 96, 96, 92));
         }
@@ -115,26 +147,68 @@ public sealed class OuterCloud : Control
     public override void Render(DrawingContext ctx)
     {
         double w = Bounds.Width, h = Bounds.Height;
-        if (w <= 1 || h <= 1 || _off) return;
+        if (w <= 1 || h <= 1 || _off)
+        {
+            return;
+        }
+
+        // 失焦降级：不画点云，换成和中心同款、更大的灰块（外一圈内一圈）
+        if (Idle)
+        {
+            CloudBlob.Draw(ctx, new Rect(Bounds.Size), _t, 0.85, BlobSteps);
+            return;
+        }
 
         int count = PointCount;
-        if (count == 0) return;
+        if (count == 0)
+        {
+            return;
+        }
 
-        double s = Math.Min(w, h) / Design;
-        var c = new Point(w / 2, h / 2);
+        var rect = new Rect(Bounds.Size);
+        if (Batch)
+        {
+            var frame = BuildVertices(rect, _t, count);
+            ctx.Custom(new CloudDrawOp(rect, frame));
+            return;
+        }
 
-        double rot = _t * 0.12;
+        RenderPaths(ctx, rect, _t, count);
+    }
+
+    // ================= 批量顶点 =================
+
+    /// <summary>
+    /// 一帧的顶点数据。刻意每帧新建，交给绘制指令后不再改动：
+    /// 合成器可能稍后才真正绘制（甚至重放），共享的可变缓冲会被后一帧改写。
+    /// </summary>
+    private sealed class VertexFrame
+    {
+        public required SKPoint[] Positions;
+        public required SKColor[] Colors;
+    }
+
+    /// <summary>每个点摊成两个三角形、共 6 个顶点（不用索引，把共享的两个角重复一遍）。</summary>
+    private const int VertsPerPoint = 6;
+
+    /// <summary>把这一帧所有点的六个角算出来。坐标以控件左上角为原点。</summary>
+    private VertexFrame BuildVertices(Rect bounds, double t, int count)
+    {
+        double s = Math.Min(bounds.Width, bounds.Height) / Design;
+        double cx = bounds.X + bounds.Width / 2;
+        double cy = bounds.Y + bounds.Height / 2;
+
+        double rot = t * 0.12;
         double cs = Math.Cos(rot), sn = Math.Sin(rot);
-        double tilt = 0.34 + 0.20 * Math.Sin(_t * 0.11);
+        double tilt = 0.34 + 0.20 * Math.Sin(t * 0.11);
         double ct = Math.Cos(tilt), st = Math.Sin(tilt);
-        // 与 CenterBlob 用同一条呼吸曲线，两层才一起起伏（系数、频率都要一致）
-        double breath = 0.030 * Math.Sin(_t * 0.9);
+        double breath = 0.030 * Math.Sin(t * 0.9);
 
         Span<double> wc = stackalloc double[WaveCount];
         Span<double> ws = stackalloc double[WaveCount];
         for (int q = 0; q < WaveCount; q++)
         {
-            double ph = _t * Waves[q].Speed;
+            double ph = t * Waves[q].Speed;
             wc[q] = Math.Cos(ph);
             ws[q] = Math.Sin(ph);
         }
@@ -143,20 +217,16 @@ public sealed class OuterCloud : Control
         Span<double> bs = stackalloc double[BreathBuckets];
         for (int b = 0; b < BreathBuckets; b++)
         {
-            double ph = _t * (0.21 + b * 0.037);
+            double ph = t * (0.21 + b * 0.037);
             bc[b] = Math.Cos(ph);
             bs[b] = Math.Sin(ph);
         }
 
-        var opens = new StreamGeometryContext[16];
-        for (int i = 0; i < 16; i++)
-        {
-            _batch[i] = new StreamGeometry();
-            opens[i] = _batch[i].Open();
-        }
+        int verts = count * VertsPerPoint;
+        var pos = new SKPoint[verts];
+        var col = new SKColor[verts];
 
-        // 按步长均匀取样，而不是取前 count 个点：
-        // 点位数组是按 y 轴顺序生成的，取前缀等于只画半球。
+        // 按步长均匀取样，而不是取前 count 个点：点位按 y 轴顺序生成，取前缀只画半球
         double stride = (double)MaxPoints / count;
         for (int k = 0; k < count; k++)
         {
@@ -178,7 +248,7 @@ public sealed class OuterCloud : Control
             int bk = pi % BreathBuckets;
             sum += 0.020 * (_brSin[pi] * bc[bk] + _brCos[pi] * bs[bk]);
 
-            // 不设半径上限：一给半径封顶，尾巴就会挤成一层壳，轮廓立刻变圆。
+            // 不设半径上限：一给半径封顶，尾巴就会挤成一层壳，轮廓立刻变圆
             double radius = BaseRadius * (0.85 + breath + sum) * _jit[pi] * s;
 
             double x1 = p.X * cs + p.Z * sn;
@@ -187,22 +257,188 @@ public sealed class OuterCloud : Control
             double z2 = p.Y * st + z1 * ct;
 
             double depth = (z2 + 1) / 2;
-            int idx = (int)Math.Clamp(depth * 15, 0, 15);
+            int idx = (int)Math.Clamp(depth * (DepthBuckets - 1), 0, DepthBuckets - 1);
 
             // 0.88：方点与同半径圆点面积对齐
             double dot = (0.45 + depth * 0.85) * 0.88 * s;
 
-            // 被推得越快，顺径向拉得越长；推到头（速度归零）就还是圆的。
+            // 被推得越快，顺径向拉得越长；推到头（速度归零）就还是圆的
             double e = 1 + Math.Min(0.65, Math.Abs(vel) * 8.0);
             double halfL = dot * e;
             double halfW = dot / Math.Sqrt(e);
 
             double ux = x1, uy = y2;
             double ulen = Math.Sqrt(ux * ux + uy * uy);
-            if (ulen < 1e-6) { ux = 1; uy = 0; } else { ux /= ulen; uy /= ulen; }
+            if (ulen < 1e-6)
+            {
+                ux = 1; uy = 0;
+            }
+            else
+            {
+                ux /= ulen; uy /= ulen;
+            }
             double tx = -uy, ty = ux;
 
-            double px = c.X + x1 * radius, py = c.Y + y2 * radius;
+            double px = cx + x1 * radius, py = cy + y2 * radius;
+            double ax = ux * halfL, ay = uy * halfL;
+            double bx = tx * halfW, by = ty * halfW;
+
+            // 顶点颜色会与画笔颜色相乘：画笔必须保持白色，否则点云会被染成黑 / 红 / 白。
+            // 另外 DrawVertices 是逐三角形混合，重叠处会叠上去；
+            // 老画法是“每个景深桶整条路径填一次”，天然不叠加。
+            byte alpha = (byte)((0.06 + depth * 0.24) * 255 * 0.35);
+            var color = new SKColor(96, 96, 92, alpha);
+
+            // 两个三角形：v0-v1-v2 与 v0-v2-v3
+            float ax0 = (float)(px - ax - bx), ay0 = (float)(py - ay - by);
+            float ax1 = (float)(px + ax - bx), ay1 = (float)(py + ay - by);
+            float ax2 = (float)(px + ax + bx), ay2 = (float)(py + ay + by);
+            float ax3 = (float)(px - ax + bx), ay3 = (float)(py - ay + by);
+
+            int v = k * VertsPerPoint;
+            pos[v] = new SKPoint(ax0, ay0);
+            pos[v + 1] = new SKPoint(ax1, ay1);
+            pos[v + 2] = new SKPoint(ax2, ay2);
+            pos[v + 3] = new SKPoint(ax0, ay0);
+            pos[v + 4] = new SKPoint(ax2, ay2);
+            pos[v + 5] = new SKPoint(ax3, ay3);
+            for (int j = 0; j < VertsPerPoint; j++)
+            {
+                col[v + j] = color;
+            }
+        }
+
+        return new VertexFrame
+        {
+            Positions = pos,
+            Colors = col,
+        };
+    }
+
+    private sealed class CloudDrawOp : ICustomDrawOperation
+    {
+        private readonly VertexFrame _frame;
+
+        public CloudDrawOp(Rect bounds, VertexFrame frame)
+        {
+            Bounds = bounds;
+            _frame = frame;
+        }
+
+        public Rect Bounds { get; }
+
+        public bool HitTest(Point p) => false;
+
+        // 每帧都是新内容，不做去重
+        public bool Equals(ICustomDrawOperation? other) => false;
+
+        public void Dispose()
+        {
+        }
+
+        public void Render(ImmediateDrawingContext context)
+        {
+            if (context.TryGetFeature(typeof(ISkiaSharpApiLeaseFeature)) is not ISkiaSharpApiLeaseFeature feature)
+            {
+                return;
+            }
+
+            using var lease = feature.Lease();
+            using var paint = new SKPaint { Color = SKColors.White, IsAntialias = false };
+            lease.SkCanvas.DrawVertices(
+                SKVertexMode.Triangles, _frame.Positions, _frame.Colors, paint);
+        }
+    }
+
+    // ================= 旧的逐点路径（Batch=false 时用） =================
+
+    private void RenderPaths(DrawingContext ctx, Rect bounds, double t, int count)
+    {
+        double s = Math.Min(bounds.Width, bounds.Height) / Design;
+        double cx = bounds.X + bounds.Width / 2;
+        double cy = bounds.Y + bounds.Height / 2;
+
+        double rot = t * 0.12;
+        double cs = Math.Cos(rot), sn = Math.Sin(rot);
+        double tilt = 0.34 + 0.20 * Math.Sin(t * 0.11);
+        double ct = Math.Cos(tilt), st = Math.Sin(tilt);
+        double breath = 0.030 * Math.Sin(t * 0.9);
+
+        Span<double> wc = stackalloc double[WaveCount];
+        Span<double> ws = stackalloc double[WaveCount];
+        for (int q = 0; q < WaveCount; q++)
+        {
+            double ph = t * Waves[q].Speed;
+            wc[q] = Math.Cos(ph);
+            ws[q] = Math.Sin(ph);
+        }
+
+        Span<double> bc = stackalloc double[BreathBuckets];
+        Span<double> bs = stackalloc double[BreathBuckets];
+        for (int b = 0; b < BreathBuckets; b++)
+        {
+            double ph = t * (0.21 + b * 0.037);
+            bc[b] = Math.Cos(ph);
+            bs[b] = Math.Sin(ph);
+        }
+
+        var opens = new StreamGeometryContext[DepthBuckets];
+        for (int i = 0; i < DepthBuckets; i++)
+        {
+            _batch[i] = new StreamGeometry();
+            opens[i] = _batch[i].Open();
+        }
+
+        double stride = (double)MaxPoints / count;
+        for (int k = 0; k < count; k++)
+        {
+            int pi = (int)(k * stride);
+            var p = _pts[pi];
+            int baseIdx = pi * WaveCount;
+
+            double sum = 0, vel = 0;
+            for (int q = 0; q < WaveCount; q++)
+            {
+                var wv = Waves[q];
+                double sa = _sinA[baseIdx + q], ca = _cosA[baseIdx + q];
+                double disp = sa * wc[q] - ca * ws[q];
+                double cosd = ca * wc[q] + sa * ws[q];
+                sum += wv.Amp * disp;
+                vel += wv.Amp * wv.Speed * cosd;
+            }
+
+            int bk = pi % BreathBuckets;
+            sum += 0.020 * (_brSin[pi] * bc[bk] + _brCos[pi] * bs[bk]);
+
+            double radius = BaseRadius * (0.85 + breath + sum) * _jit[pi] * s;
+
+            double x1 = p.X * cs + p.Z * sn;
+            double z1 = -p.X * sn + p.Z * cs;
+            double y2 = p.Y * ct - z1 * st;
+            double z2 = p.Y * st + z1 * ct;
+
+            double depth = (z2 + 1) / 2;
+            int idx = (int)Math.Clamp(depth * (DepthBuckets - 1), 0, DepthBuckets - 1);
+
+            double dot = (0.45 + depth * 0.85) * 0.88 * s;
+
+            double e = 1 + Math.Min(0.65, Math.Abs(vel) * 8.0);
+            double halfL = dot * e;
+            double halfW = dot / Math.Sqrt(e);
+
+            double ux = x1, uy = y2;
+            double ulen = Math.Sqrt(ux * ux + uy * uy);
+            if (ulen < 1e-6)
+            {
+                ux = 1; uy = 0;
+            }
+            else
+            {
+                ux /= ulen; uy /= ulen;
+            }
+            double tx = -uy, ty = ux;
+
+            double px = cx + x1 * radius, py = cy + y2 * radius;
             double ax = ux * halfL, ay = uy * halfL;
             double bx = tx * halfW, by = ty * halfW;
 
@@ -214,37 +450,45 @@ public sealed class OuterCloud : Control
             o.EndFigure(true);
         }
 
-        for (int i = 0; i < 16; i++)
+        for (int i = 0; i < DepthBuckets; i++)
         {
             opens[i].Dispose();
             ctx.DrawGeometry(_brushes[i], null, _batch[i]);
         }
     }
 
-    private void OnModeChanged()
+    // ================= 刷新节奏 =================
+
+    private void SyncTimer()
     {
         _off = Mode == "off";
-        if (_timer is not null)
+
+        // 失焦 + 精简：画一帧就停
+        if (_off || (Idle && Mode == "lite"))
         {
-            _timer.Interval = IntervalFor(Mode);
-            if (_off) _timer.Stop();
-            else if (!_timer.IsEnabled) _timer.Start();
+            _timer?.Stop();
+            // 停下前把最后一帧画出来
+            InvalidateVisual();
+            return;
         }
-        InvalidateVisual();
+
+        var interval = Idle ? IdleInterval : IntervalFor(Mode);
+        _timer ??= new DispatcherTimer(interval, DispatcherPriority.Render, (_, _) =>
+        {
+            _t += 0.016;
+            InvalidateVisual();
+        });
+        _timer.Interval = interval;
+        if (!_timer.IsEnabled)
+        {
+            _timer.Start();
+        }
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
-        _off = Mode == "off";
-        if (_off) return;
-
-        _timer ??= new DispatcherTimer(IntervalFor(Mode), DispatcherPriority.Render, (_, _) =>
-        {
-            _t += 0.016;
-            InvalidateVisual();
-        });
-        _timer.Start();
+        SyncTimer();
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)

@@ -65,6 +65,20 @@ public partial class MainWindow : Window
                     (DataContext as MainViewModel)?.CloseDetail();
             };
         }
+
+        // 窗口不在前台时让点云降级：后台不该继续烧 CPU 画满屏动画
+        Activated += (_, _) => (DataContext as MainViewModel)?.WindowFocused = true;
+        Deactivated += (_, _) => (DataContext as MainViewModel)?.WindowFocused = false;
+
+        // 开发用：ENF_FOCUS=0/1 把焦点状态钉死，方便分别验证正常与降级两条绘制路径
+        string? force = Environment.GetEnvironmentVariable("ENF_FOCUS");
+        if (force is "0" or "1")
+        {
+            bool v = force == "1";
+            void Apply(object? _, EventArgs __) => (DataContext as MainViewModel)?.WindowFocused = v;
+            Activated += Apply;
+            Deactivated += Apply;
+        }
     }
 
     private void OnNavOverview(object? sender, RoutedEventArgs e) => (DataContext as MainViewModel)?.GoOverview();

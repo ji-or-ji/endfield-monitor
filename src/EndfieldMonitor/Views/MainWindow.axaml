@@ -130,8 +130,10 @@
                             <Grid Width="470" Height="470" HorizontalAlignment="Center" VerticalAlignment="Center">
                                 <!-- 内盘底色在最下：环要压在点云之上，就不能把内盘留在环里一起画上去 -->
                                 <Ellipse Width="252" Height="252" Fill="#EDEDEA" />
-                                <controls:CenterBlob Width="290" Height="290" Mode="{Binding ParticleMode}" />
-                                <controls:OuterCloud Width="290" Height="290" Mode="{Binding ParticleMode}" />
+                                <controls:CenterBlob Width="290" Height="290" Mode="{Binding ParticleMode}"
+                                                     Idle="{Binding CloudIdle}" />
+                                <controls:OuterCloud Width="290" Height="290" Mode="{Binding ParticleMode}"
+                                                     Batch="{Binding BatchCloud}" Idle="{Binding CloudIdle}" />
                                 <controls:RingGauge UpperHistory="{Binding CpuHistory}" LowerHistory="{Binding MemHistory}" />
 
                                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -377,6 +379,12 @@
                         <ComboBox ItemsSource="{Binding ParticleModeOptions}"
                                   SelectedIndex="{Binding EditParticleIndex}" HorizontalAlignment="Stretch" />
                         <TextBlock Text="默认「完整」为终末地原版观感；选「精简」或「关闭」可降低占用。"
+                                   FontSize="11" Foreground="{StaticResource TextDimBrush}" TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <StackPanel Spacing="6">
+                        <CheckBox Content="点云批量绘制" IsChecked="{Binding EditBatchCloud}" FontSize="13" />
+                        <TextBlock Text="把数千个点合成一次绘制交给 GPU。关掉会回退到逐点绘制，仅供排查用。窗口不在前台时会自动降级成灰块。"
                                    FontSize="11" Foreground="{StaticResource TextDimBrush}" TextWrapping="Wrap" />
                     </StackPanel>
 
