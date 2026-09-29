@@ -690,8 +690,9 @@ public partial class MainViewModel : ViewModelBase
             return;
         }
 
-        TagCpu = ShowAbsolute ? $"CPU {_cpuFreq:0.00} GHz" : $"CPU {_sysCpu:0}%";
-        TagMem = ShowAbsolute ? $"MEM {_memUsed:0.#} / {_memTotal:0.#} GB" : $"MEM {_memPct:0}%";
+        // 底栏固定给百分比汇总；具体值交给环上那两个角标
+        TagCpu = $"CPU {_sysCpu:0}%";
+        TagMem = $"MEM {_memPct:0}%";
         TagComp = $"综合 {Composite:F1}%";
 
         // 环上两个角标：各自贴近自己那条弧（橘=CPU、蓝=内存）
