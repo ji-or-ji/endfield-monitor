@@ -389,8 +389,8 @@
                     </StackPanel>
 
                     <StackPanel Spacing="6">
-                        <CheckBox Content="显示具体数值" IsChecked="{Binding EditShowAbsolute}" FontSize="13" />
-                        <TextBlock Text="勾上后环上那两个角标显示实际数值（CPU 实时频率、内存已用）；下方汇总始终是百分比。"
+                        <CheckBox Content="环上显示具体数值" IsChecked="{Binding EditShowAbsolute}" FontSize="13" />
+                        <TextBlock Text="打开时环上两个角标显实际数值（CPU 实时频率、内存已用），下方汇总显百分比；关闭时反过来。两边始终一正一反，不会重复。"
                                    FontSize="11" Foreground="{StaticResource TextDimBrush}" TextWrapping="Wrap" />
                     </StackPanel>
 
