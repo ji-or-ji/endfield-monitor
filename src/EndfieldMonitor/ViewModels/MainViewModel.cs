@@ -245,6 +245,7 @@ public partial class MainViewModel : ViewModelBase
         var keys = new List<string> { "cpu", "gpu", "mem" };
         for (int i = 0; i < s.Disks.Count; i++) keys.Add("disk-" + i);
         keys.Add("net");
+        if (s.Battery.Present) keys.Add("battery");
         string sig = string.Join("|", keys);
 
         if (sig != _deviceSig)
@@ -338,6 +339,29 @@ public partial class MainViewModel : ViewModelBase
                 },
             });
 
+            // 只有笔记本 / 手持设备才有电池，台式机不摆这一行
+            if (s.Battery.Present)
+            {
+                var bat = s.Battery;
+                Devices.Add(new DeviceRowViewModel
+                {
+                    Key = "battery", Type = "battery", Name = "电池",
+                    Sub = BatteryStateText(bat),
+                    Icon = IconLibrary.Get("battery"),
+                    Util = bat.Percent < 0 ? 0 : bat.Percent,
+                    Cur1Label = "电量", Cur1Value = bat.Percent < 0 ? "—" : $"{bat.Percent:0}%",
+                    Cur2Label = "剩余", Cur2Value = FormatLeft(bat.SecondsLeft),
+                    // 电池没有可报的“规格”（容量/健康度暂时采不到），留空比重复更有意义
+                    Detail =
+                    {
+                        new DetailRowViewModel { Label = "电量", Value = bat.Percent < 0 ? "—" : $"{bat.Percent:0}%" },
+                        new DetailRowViewModel { Label = "状态", Value = BatteryStateText(bat) },
+                        new DetailRowViewModel { Label = "剩余时间", Value = FormatLeft(bat.SecondsLeft) },
+                        new DetailRowViewModel { Label = "供电", Value = bat.OnAC ? "外接电源" : "电池" },
+                    },
+                });
+            }
+
             // 重建时把旧走势接回去，避免图表归零
             foreach (var d in Devices)
                 if (old.TryGetValue(d.Key, out var hist)) d.AdoptHistory(hist);
@@ -370,6 +394,12 @@ public partial class MainViewModel : ViewModelBase
                         d.Cur1Value = $"{s.Net.Down:F1} Mbps";
                         d.Cur2Value = $"{s.Net.Up:F1} Mbps";
                         break;
+                    case "battery":
+                        d.Util = s.Battery.Percent < 0 ? 0 : s.Battery.Percent;
+                        d.Sub = BatteryStateText(s.Battery);
+                        d.Cur1Value = s.Battery.Percent < 0 ? "—" : $"{s.Battery.Percent:0}%";
+                        d.Cur2Value = FormatLeft(s.Battery.SecondsLeft);
+                        break;
                     default:
                         if (d.Key.StartsWith("disk-") &&
                             int.TryParse(d.Key.AsSpan(5), out int idx) && idx < s.Disks.Count)
@@ -386,6 +416,27 @@ public partial class MainViewModel : ViewModelBase
         }
 
         foreach (var d in Devices) d.PushHistory(d.Util);
+    }
+
+    /// <summary>电池状态的短描述。</summary>
+    private static string BatteryStateText(BatteryInfo b)
+    {
+        if (b.Charging)
+        {
+            return "充电中";
+        }
+        return b.OnAC ? "已接电源" : "电池供电";
+    }
+
+    /// <summary>剩余时间：秒 -> “1 小时 31 分”。未知时给占位符。</summary>
+    private static string FormatLeft(double seconds)
+    {
+        if (seconds <= 0)
+        {
+            return "—";
+        }
+        var ts = TimeSpan.FromSeconds(seconds);
+        return ts.TotalHours >= 1 ? $"{(int)ts.TotalHours} 小时 {ts.Minutes} 分" : $"{ts.Minutes} 分";
     }
 
     private static string FormatUptime(double hours)

@@ -262,6 +262,7 @@ func sampleLoop() {
 			Mem:      readMem(),
 			Disks:    readDisks(dt),
 			Net:      readNetRates(prevNet, curNet, dt),
+			Battery:  readBattery(),
 			Procs:    snapProcs,
 			Server:   readServer(svc, tasks),
 		}

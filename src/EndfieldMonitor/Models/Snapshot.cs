@@ -17,9 +17,10 @@ public sealed class Snapshot
     [JsonPropertyName("cpu")]   public CpuInfo Cpu { get; set; } = new();
     [JsonPropertyName("gpu")]   public GpuInfo Gpu { get; set; } = new();
     [JsonPropertyName("mem")]   public MemInfo Mem { get; set; } = new();
-    [JsonPropertyName("disks")] public List<DiskInfo> Disks { get; set; } = new();
-    [JsonPropertyName("net")]   public NetInfo Net { get; set; } = new();
-    [JsonPropertyName("procs")] public List<ProcInfo> Procs { get; set; } = new();
+    [JsonPropertyName("disks")]   public List<DiskInfo> Disks { get; set; } = new();
+    [JsonPropertyName("net")]     public NetInfo Net { get; set; } = new();
+    [JsonPropertyName("battery")] public BatteryInfo Battery { get; set; } = new();
+    [JsonPropertyName("procs")]   public List<ProcInfo> Procs { get; set; } = new();
 
     /// <summary>麦麦业务扩展块，本项目相对原采集端的增量。</summary>
     [JsonPropertyName("server")] public ServerInfo? Server { get; set; }
@@ -73,6 +74,16 @@ public sealed class NetInfo
     [JsonPropertyName("up")]   public double Up { get; set; }
     [JsonPropertyName("link")] public double Link { get; set; }
     [JsonPropertyName("util")] public double Util { get; set; }
+}
+
+/// <summary>电池。台式机没有电池，Present 为假，其余字段无意义。</summary>
+public sealed class BatteryInfo
+{
+    [JsonPropertyName("present")]      public bool Present { get; set; }
+    [JsonPropertyName("percent")]      public double Percent { get; set; }
+    [JsonPropertyName("charging")]     public bool Charging { get; set; }
+    [JsonPropertyName("on_ac")]        public bool OnAC { get; set; }
+    [JsonPropertyName("seconds_left")] public double SecondsLeft { get; set; }
 }
 
 public sealed class ProcInfo

@@ -11,6 +11,7 @@ type Snapshot struct {
 	Mem      MemInfo     `json:"mem"`
 	Disks    []DiskInfo  `json:"disks"`
 	Net      NetInfo     `json:"net"`
+	Battery  BatteryInfo `json:"battery"`
 	Procs    []ProcInfo  `json:"procs"`
 	Server   *ServerInfo `json:"server"`
 }
@@ -58,6 +59,16 @@ type NetInfo struct {
 	Up   float64 `json:"up"`
 	Link float64 `json:"link"`
 	Util float64 `json:"util"`
+}
+
+// BatteryInfo 是电池状态。电池为笔记本/手持设备才有的东西，
+// 台式机（或桌面 Linux）没有电池，Present 为 false，其它字段无意义。
+type BatteryInfo struct {
+	Present     bool    `json:"present"`
+	Percent     float64 `json:"percent"`      // 0~100；-1 表示未知
+	Charging    bool    `json:"charging"`     // 正在充电
+	OnAC        bool    `json:"on_ac"`        // 接着电源
+	SecondsLeft float64 `json:"seconds_left"` // 预计剩余秒数；0 表示未知
 }
 
 type ProcInfo struct {
