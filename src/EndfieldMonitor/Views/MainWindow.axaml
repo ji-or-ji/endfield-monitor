@@ -160,11 +160,11 @@
                                   ColumnDefinitions="Auto,Auto">
                                 <Border Grid.Column="0" Background="{StaticResource DarkBrush}" Padding="11,7"
                                         MinWidth="75" BoxShadow="0 3 6 0 #38000000">
-                                    <TextBlock Text="{Binding BigNumber}" Foreground="White" FontSize="19"
+                                    <TextBlock Text="{Binding ChipCpu}" Foreground="White" FontSize="19"
                                                TextAlignment="Center" />
                                 </Border>
                                 <Border Grid.Column="1" Background="#DDDDD8" Padding="11,7">
-                                    <TextBlock Text="实际占用" FontSize="11" LetterSpacing="2"
+                                    <TextBlock Text="CPU" FontSize="11" LetterSpacing="2"
                                                Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" />
                                 </Border>
                             </Grid>
@@ -172,12 +172,12 @@
                             <Grid HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="81,0,0,38"
                                   ColumnDefinitions="Auto,Auto">
                                 <Border Grid.Column="0" Background="#DDDDD8" Padding="11,7">
-                                    <TextBlock Text="最大占用" FontSize="11" LetterSpacing="2"
+                                    <TextBlock Text="内存" FontSize="11" LetterSpacing="2"
                                                Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" />
                                 </Border>
                                 <Border Grid.Column="1" Background="{StaticResource DarkBrush}" Padding="11,7"
                                         MinWidth="75" BoxShadow="0 3 6 0 #38000000">
-                                    <TextBlock Text="{Binding MaxNumber}" Foreground="White" FontSize="19"
+                                    <TextBlock Text="{Binding ChipMem}" Foreground="White" FontSize="19"
                                                TextAlignment="Center" />
                                 </Border>
                             </Grid>

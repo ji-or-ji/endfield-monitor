@@ -110,6 +110,12 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>设置面板里的编辑值。</summary>
     [ObservableProperty] public partial bool EditShowAbsolute { get; set; }
 
+    /// <summary>环上右上角标（橘弧一侧）里的 CPU 读数。</summary>
+    [ObservableProperty] public partial string ChipCpu { get; set; } = "-";
+
+    /// <summary>环上左下角标（蓝弧一侧）里的内存读数。</summary>
+    [ObservableProperty] public partial string ChipMem { get; set; } = "-";
+
     // ---- 连接参数来自本地配置（可在设置里改）----
     private readonly AppConfig _config = AppConfig.Load();
     private readonly SnapshotClient _client = new();
@@ -679,12 +685,18 @@ public partial class MainViewModel : ViewModelBase
             TagCpu = "CPU -";
             TagMem = "MEM -";
             TagComp = "综合 -";
+            ChipCpu = "-";
+            ChipMem = "-";
             return;
         }
 
         TagCpu = ShowAbsolute ? $"CPU {_cpuFreq:0.00} GHz" : $"CPU {_sysCpu:0}%";
         TagMem = ShowAbsolute ? $"MEM {_memUsed:0.#} / {_memTotal:0.#} GB" : $"MEM {_memPct:0}%";
         TagComp = $"综合 {Composite:F1}%";
+
+        // 环上两个角标：各自贴近自己那条弧（橘=CPU、蓝=内存）
+        ChipCpu = ShowAbsolute ? $"{_cpuFreq:0.00} GHz" : $"{_sysCpu:0}%";
+        ChipMem = ShowAbsolute ? $"{_memUsed:0.#} GB" : $"{_memPct:0}%";
     }
 }
 
