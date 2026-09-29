@@ -286,7 +286,7 @@ public sealed class OuterCloud : Control
             // 顶点颜色会与画笔颜色相乘：画笔必须保持白色，否则点云会被染成黑 / 红 / 白。
             // 另外 DrawVertices 是逐三角形混合，重叠处会叠上去；
             // 老画法是“每个景深桶整条路径填一次”，天然不叠加。
-            byte alpha = (byte)((0.06 + depth * 0.24) * 255 * 0.35);
+            byte alpha = (byte)((0.06 + depth * 0.24) * 255 * 0.25);
             var color = new SKColor(96, 96, 92, alpha);
 
             // 两个三角形：v0-v1-v2 与 v0-v2-v3
@@ -344,7 +344,8 @@ public sealed class OuterCloud : Control
             }
 
             using var lease = feature.Lease();
-            using var paint = new SKPaint { Color = SKColors.White, IsAntialias = false };
+            // 抗锯齿必须开：关掉时每个小四边形都是硬边像素块，看着像“实心、没透明度”。
+            using var paint = new SKPaint { Color = SKColors.White, IsAntialias = true };
             lease.SkCanvas.DrawVertices(
                 SKVertexMode.Triangles, _frame.Positions, _frame.Colors, paint);
         }
