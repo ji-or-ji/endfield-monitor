@@ -5,12 +5,15 @@ package main
 import (
 	"context"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"os/exec"
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/sys/windows/registry"
 )
 
 // SMBIOS 内存类型编号（Win32_PhysicalMemory.SMBIOSMemoryType）。
@@ -169,6 +172,54 @@ func collectStaticExtra(s *staticInfo) {
 			break
 		}
 	}
+
+	// 显存总量：驱动会把它留在显示类键下。核显没有专用显存，读不到就留 0。
+	if s.GPUName != "" {
+		s.GPUMemMB = gpuMemTotalMB(s.GPUName)
+	}
+}
+
+// gpuMemTotalMB 从显示适配器类注册表里读显存大小。
+// WMI 的 AdapterRAM 是 32 位、超过 4GB 会截断，不准；这个值是驱动自己上报的。
+func gpuMemTotalMB(name string) float64 {
+	const classKey = `SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}`
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE, classKey, registry.READ)
+	if err != nil {
+		return 0
+	}
+	defer k.Close()
+
+	subs, err := k.ReadSubKeyNames(-1)
+	if err != nil {
+		return 0
+	}
+	for _, sub := range subs {
+		if len(sub) != 4 { // 只有 0000/0001… 这种才是适配器实例
+			continue
+		}
+		sk, err := registry.OpenKey(registry.LOCAL_MACHINE, classKey+`\`+sub, registry.READ)
+		if err != nil {
+			continue
+		}
+		desc, _, _ := sk.GetStringValue("DriverDesc")
+		if desc == "" || (name != "" && !strings.Contains(name, desc) && !strings.Contains(desc, name)) {
+			sk.Close()
+			continue
+		}
+
+		var bytesVal uint64
+		if b, _, err := sk.GetBinaryValue("HardwareInformation.qwMemorySize"); err == nil && len(b) >= 8 {
+			bytesVal = binary.LittleEndian.Uint64(b[:8])
+		} else if v, _, err := sk.GetIntegerValue("HardwareInformation.qwMemorySize"); err == nil && v > 0 {
+			bytesVal = v
+		}
+		sk.Close()
+
+		if bytesVal > 0 {
+			return float64(bytesVal) / 1048576
+		}
+	}
+	return 0
 }
 
 // 描述里出现这些词的多半是虚拟/远程显示适配器，不是真显卡。

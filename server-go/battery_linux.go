@@ -73,6 +73,42 @@ func readBattery() BatteryInfo {
 	return b
 }
 
+// 容量：满充与设计容量，统一折算成 mWh。sysfs 里能量是 µWh，电量是 µAh。
+func batteryCapacity() (design, full int) {
+	const root = "/sys/class/power_supply"
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return 0, 0
+	}
+	for _, e := range entries {
+		dir := filepath.Join(root, e.Name())
+		if readSysFile(filepath.Join(dir, "type")) != "Battery" {
+			continue
+		}
+		full = sysCapacityMWh(dir, "energy_full", "charge_full")
+		design = sysCapacityMWh(dir, "energy_full_design", "charge_full_design")
+		return design, full // 多块电池的情况很少，取第一块
+	}
+	return 0, 0
+}
+
+// sysCapacityMWh 优先读 energy_*（µWh，除 1000 得 mWh）；
+// 退而求其次读 charge_*（µAh），乘电压折算成能量。
+func sysCapacityMWh(dir, energyKey, chargeKey string) int {
+	if v, ok := readSysInt(filepath.Join(dir, energyKey)); ok && v > 0 {
+		return int(v / 1000)
+	}
+	v, ok := readSysInt(filepath.Join(dir, chargeKey))
+	if !ok || v <= 0 {
+		return 0
+	}
+	volt, ok := readSysInt(filepath.Join(dir, "voltage_now")) // µV
+	if !ok || volt <= 0 {
+		volt = 3700000 // 拿不到电压就按 3.7V 估
+	}
+	return int(float64(v) / 1e6 * (float64(volt) / 1e6) * 1000)
+}
+
 func readSysFile(path string) string {
 	data, err := os.ReadFile(path)
 	if err != nil {
