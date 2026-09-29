@@ -20,6 +20,9 @@ public sealed class AppConfig
     /// <summary>点云是否用一次性 DrawVertices 批量提交（走 GPU 顶点）。关掉则回退逐点路径。</summary>
     [JsonPropertyName("batchCloud")] public bool BatchCloud { get; set; } = true;
 
+    /// <summary>CPU / 内存是否显示具体数值（频率、GB），而不是占用百分比。</summary>
+    [JsonPropertyName("showAbsolute")] public bool ShowAbsolute { get; set; }
+
     /// <summary>本次启动前是否已存在配置文件（用于决定要不要首次引导）。</summary>
     [JsonIgnore] public bool Existed { get; private set; }
 

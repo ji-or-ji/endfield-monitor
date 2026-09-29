@@ -388,6 +388,12 @@
                                    FontSize="11" Foreground="{StaticResource TextDimBrush}" TextWrapping="Wrap" />
                     </StackPanel>
 
+                    <StackPanel Spacing="6">
+                        <CheckBox Content="显示具体数值" IsChecked="{Binding EditShowAbsolute}" FontSize="13" />
+                        <TextBlock Text="勾上后 CPU 显实时频率、内存显已用/总量；圆心那个数字始终是综合占比。"
+                                   FontSize="11" Foreground="{StaticResource TextDimBrush}" TextWrapping="Wrap" />
+                    </StackPanel>
+
                     <TextBlock Text="口令需与服务端启动时的 --token 一致；填错只会停在「离线」。"
                                FontSize="11" Foreground="{StaticResource TextDimBrush}" TextWrapping="Wrap" />
 
