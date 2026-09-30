@@ -5,9 +5,12 @@ package main
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"image"
 	"image/png"
 	"unsafe"
+
+	"github.com/shirou/gopsutil/v4/process"
 
 	"golang.org/x/sys/windows"
 )
@@ -192,4 +195,38 @@ func appIconPNG(exe string) ([]byte, error) {
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+// appIcon 是给上层用的统一入口。Windows 这边图标就在 exe 自己的资源里，
+// 结果一定是 PNG，所以 mime 固定；pid 用不上。
+func appIcon(_ int32, exe string) ([]byte, string, error) {
+	data, err := appIconPNG(exe)
+	if err != nil {
+		return nil, "", err
+	}
+	return data, "image/png", nil
+}
+
+// probeIcon 是 --probe-icon 在 Windows 上的对应实现。
+// Windows 的链条短得多：图标就在 exe 自己的资源里，不涉及目录查找。
+func probeIcon(pid int32) {
+	// 直接从 pid 取路径，不走采集端的进程缓存：
+	// 单跑 --probe-icon 时那个缓存是空的，会误报“不在快照里”。
+	p, err := process.NewProcess(pid)
+	if err != nil {
+		fmt.Printf("[probe] 找不到进程 %d: %v\n", pid, err)
+		return
+	}
+	exe, err := p.Exe()
+	if err != nil || exe == "" {
+		fmt.Printf("[probe] 拿不到进程 %d 的可执行文件路径\n", pid)
+		return
+	}
+	fmt.Printf("[probe] pid=%d exe=%q\n", pid, exe)
+	data, err := appIconPNG(exe)
+	if err != nil {
+		fmt.Printf("[probe] 提取失败: %v\n", err)
+		return
+	}
+	fmt.Printf("[probe] 命中 exe 内嵌图标，%d 字节 image/png\n", len(data))
 }
