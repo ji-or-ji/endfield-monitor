@@ -386,12 +386,16 @@ public partial class MainViewModel : ViewModelBase
                         d.Sub = $"{s.Cpu.Threads} 线程 · {s.Cpu.Util:0}% 负载";
                         d.Cur1Value = $"{s.Cpu.Util:0}%";
                         d.Cur2Value = $"{s.Cpu.Freq:0.00} GHz";
+                        d.SetDetail("实测峰值", CpuPeakText(s.Cpu));
                         break;
                     case "gpu":
                         d.Util = s.Gpu.Util;
                         d.Sub = s.Gpu.Ok ? $"利用率 {s.Gpu.Util:0}%" : "未采集";
                         d.Cur1Value = $"{s.Gpu.Util:0}%";
                         d.Cur2Value = GpuMemText(s.Gpu);
+                        d.SetDetail("利用率", $"{s.Gpu.Util:0}%");
+                        d.SetDetail("显存占用", s.Gpu.MemUsed is { } gu2 ? $"{gu2:0} MB" : "—");
+                        d.SetDetail("显存总量", s.Gpu.MemTotal > 0 ? $"{s.Gpu.MemTotal:0} MB" : "核显或驱动未上报");
                         break;
                     case "mem":
                         d.Util = s.Mem.Pct;
@@ -408,6 +412,9 @@ public partial class MainViewModel : ViewModelBase
                         d.Sub = BatteryStateText(s.Battery);
                         d.Cur1Value = s.Battery.Percent < 0 ? "—" : $"{s.Battery.Percent:0}%";
                         d.Cur2Value = FormatLeft(s.Battery.SecondsLeft);
+                        d.SetDetail("电量", s.Battery.Percent < 0 ? "—" : $"{s.Battery.Percent:0}%");
+                        d.SetDetail("状态", BatteryStateText(s.Battery));
+                        d.SetDetail("剩余时间", FormatLeft(s.Battery.SecondsLeft));
                         break;
                     default:
                         if (d.Key.StartsWith("disk-") &&
@@ -418,6 +425,7 @@ public partial class MainViewModel : ViewModelBase
                             d.Sub = $"已用 {dd.Used} / {dd.Total} GB";
                             d.Cur1Value = $"{dd.Util:0}%";
                             d.Cur2Value = dd.Rw ?? "0 MB/s";
+                            d.SetDetail("已用", dd.Used + " GB");
                         }
                         break;
                 }
@@ -576,10 +584,13 @@ public partial class MainViewModel : ViewModelBase
 
     public void OpenDetail(DeviceRowViewModel d)
     {
+        // 直接复用这一行自己的详情实例：它们会随快照持续更新，
+        // 面板开着的时候也是活的（以前是拷一份，拷完就冻住了）。
         DetailRows.Clear();
-        foreach (var r in d.Detail) DetailRows.Add(r);
-        DetailRows.Add(new DetailRowViewModel { Label = d.Cur1Label, Value = d.Cur1Value });
-        DetailRows.Add(new DetailRowViewModel { Label = d.Cur2Label, Value = d.Cur2Value });
+        foreach (var r in d.Detail)
+        {
+            DetailRows.Add(r);
+        }
         IsDetailOpen = true;
     }
 
