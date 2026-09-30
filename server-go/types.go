@@ -86,12 +86,30 @@ type ProcInfo struct {
 	Mem   float64 `json:"mem"`
 	CPU   float64 `json:"cpu"`
 	Title string  `json:"title"`
+
+	// 启动参数。只在增强版（plus）里采：它服务于「重启」这个能力，
+	// 而且命令行里可能带着口令之类的敏感参数，普通版没必要往局域网里广播。
+	Cmd []string `json:"cmd,omitempty"`
+}
+
+// AuditEntry 是增强版动过手之后留下的一条记录。
+type AuditEntry struct {
+	At     string `json:"at"`     // 本地时间，秒级
+	Action string `json:"action"` // stop / restart
+	Pid    int32  `json:"pid"`
+	Name   string `json:"name,omitempty"` // 操作时进程的名字，便于事后认人
+	From   string `json:"from"`           // 来源地址
+	OK     bool   `json:"ok"`
+	Err    string `json:"err,omitempty"`
 }
 
 type ServerInfo struct {
 	Host        string       `json:"host"`
 	UptimeHours float64      `json:"uptime_hours"`
 	Service     *ServiceInfo `json:"service"`
+
+	// 增强版动过手的记录，最近几十条。只读模式与没动过手时都不出现。
+	Audit []AuditEntry `json:"audit,omitempty"`
 }
 
 // ServiceInfo 只在配置了 --watch-* 时出现，否则为 null（通用形态）。

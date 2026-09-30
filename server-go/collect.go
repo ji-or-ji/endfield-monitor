@@ -203,6 +203,14 @@ func collectProcs() []ProcInfo {
 		// 进程、白名单过滤之类用途。全表读一次 PEB 约 7ms，算主要模式的固定开销；
 		// 轻量模式下采样本身就稀疏，这点开销随之摊薄。
 		exe, _ := p.Exe()
+
+		// 启动参数只在增强版里采：它服务于「重启」，而且命令行里可能带着
+		// 口令之类的敏感参数，没必要让普通版把它们广播到局域网上。
+		var cmd []string
+		if plusBuild {
+			cmd, _ = p.CmdlineSlice()
+		}
+
 		out = append(out, ProcInfo{
 			Pid:   p.Pid,
 			Name:  name,
@@ -210,6 +218,7 @@ func collectProcs() []ProcInfo {
 			Mem:   round1(rss),
 			CPU:   round1(cpuPct / ncpu),
 			Title: titles[p.Pid],
+			Cmd:   cmd,
 		})
 		seen[p.Pid] = true
 	}
