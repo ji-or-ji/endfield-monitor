@@ -166,15 +166,33 @@ if (-not $Publish) {
     return
 }
 
-$token = $env:GITEE_TOKEN
-if (-not $token) {
-    $p = Join-Path $HOME '.gitee-token'
-    if (Test-Path $p) { $token = (Get-Content $p -Raw).Trim() }
+# 两个平台各要一个令牌：Gitee 是主仓库（只留最近两版），GitHub 是镜像（历史都留着）。
+function Get-Token([string]$envName, [string]$fileName, [string]$who) {
+    $t = [Environment]::GetEnvironmentVariable($envName)
+    if (-not $t) {
+        $p = Join-Path $HOME $fileName
+        if (Test-Path $p) { $t = (Get-Content $p -Raw).Trim() }
+    }
+    if (-not $t) { throw "没找到 $who 令牌：设环境变量 $envName，或放到 ~/$fileName" }
+    return $t
 }
-if (-not $token) { throw '没找到 Gitee 令牌，请设环境变量 GITEE_TOKEN' }
+$giteeToken = Get-Token 'GITEE_TOKEN' '.gitee-token' 'Gitee'
+$githubToken = Get-Token 'GITHUB_TOKEN' '.github-token' 'GitHub'
 
-$api = 'https://gitee.com/api/v5/repos/ji-or-ji/endfield-monitor'
-$sanitize = { param($s) $s -replace [regex]::Escape($token), '***' }
+$giteeRepo = 'ji-or-ji/endfield-monitor'
+$githubRepo = 'ji-or-ji/endfield-monitor'
+$giteeApi = "https://gitee.com/api/v5/repos/$giteeRepo"
+$githubApi = "https://api.github.com/repos/$githubRepo"
+$githubUpload = "https://uploads.github.com/repos/$githubRepo"
+$githubPushUrl = "https://x-access-token:$githubToken@github.com/$githubRepo.git"
+$githubHeaders = @{
+    Authorization = "token $githubToken"
+    Accept        = 'application/vnd.github+json'
+    'User-Agent'  = 'enf-build'
+}
+
+# 两个令牌都不能漏到输出里
+$sanitize = { param($s) $s -replace [regex]::Escape($giteeToken), '***' -replace [regex]::Escape($githubToken), '***' }
 
 # 说明：优先用手写的 publish/RELEASE-<版本>.md，没有就自动生成一份附件清单
 $notesPath = Join-Path $repo "publish\RELEASE-$Version.md"
@@ -188,45 +206,64 @@ if (Test-Path $notesPath) {
     Write-Host '没有手写说明，用自动生成的附件清单' -ForegroundColor DarkGray
 }
 
-Write-Host "创建发行版 $Version ..." -ForegroundColor Cyan
+# 先把代码与标签推到两边：发行版指向的提交，远端得先有。
+# 标签一次只推一个显式引用，批量推会被安全策略拦。
+Write-Host '推送代码与标签 ...' -ForegroundColor Cyan
+$env:GIT_TERMINAL_PROMPT = '0'
+foreach ($t in @(
+        @{ Label = 'Gitee'; Ref = 'origin' },
+        @{ Label = 'GitHub'; Ref = $githubPushUrl }
+    )) {
+    foreach ($ref in @('main', $Version)) {
+        git -C $repo push $t.Ref $ref 2>&1 | Select-Object -Last 1
+        if ($LASTEXITCODE -ne 0) { throw "推 $($t.Label) 的 $ref 失败，先把推送问题处理掉" }
+        Write-Host "  $($t.Label) $ref 已推" -ForegroundColor DarkGray
+    }
+}
 
-# -Prune：先清掉旧版本的发行版（附件随之释放），只留最近 2 版。
+# -Prune：清掉 Gitee 上旧版本的发行版（附件随之释放），只留最近 2 版。
 # Gitee 的仓库附件配额是 1 GB，全量发几版就会撞上；而且它的 API 没有删附件的接口，
-# 只能连整个发行版一起删（tag 会留着，代码不受影响）。
-# 历史版本放网盘，release 只留最近两版。
+# 只能连整个发行版一起删（tag 会留着，代码不受影响）。历史版本存在 GitHub 那边。
 if ($Prune) {
-    Write-Host '  清理旧版本（只留最近 2 版）...' -ForegroundColor Yellow
-    $all = @(Invoke-RestMethod -Method Get -Uri "$api/releases" -TimeoutSec 60) | Sort-Object created_at -Descending
+    Write-Host '  Gitee 清理旧版本（只留最近 2 版）...' -ForegroundColor Yellow
+    $all = @(Invoke-RestMethod -Uri "$giteeApi/releases" -TimeoutSec 60) | Sort-Object created_at -Descending
     $keep = @($all | Select-Object -First 2 | ForEach-Object { $_.tag_name }) + $Version
     foreach ($r in $all) {
         if ($keep -contains $r.tag_name) { continue }
         try {
-            Invoke-RestMethod -Method Delete -Uri "$api/releases/$($r.id)?access_token=$token" -TimeoutSec 60 | Out-Null
+            Invoke-RestMethod -Method Delete -Uri "$giteeApi/releases/$($r.id)?access_token=$giteeToken" -TimeoutSec 60 | Out-Null
             Write-Host "    已删 $($r.tag_name)（tag 保留）" -ForegroundColor DarkGray
         } catch {
             Write-Host "    删 $($r.tag_name) 失败：$(& $sanitize $_.Exception.Message)" -ForegroundColor Red
         }
     }
 }
+
+# ---------- Gitee：创建发行版并全量上传 ----------
+Write-Host 'Gitee：创建发行版 ...' -ForegroundColor Cyan
+$grel = $null
+$giteeHave = @()
 try {
-    $rel = Invoke-RestMethod -Method Post -Uri "$api/releases" -ContentType 'application/json' -TimeoutSec 120 -Body (@{
-        access_token = $token; tag_name = $Version; target_commitish = 'main'
+    $grel = Invoke-RestMethod -Method Post -Uri "$giteeApi/releases" -ContentType 'application/json' -TimeoutSec 120 -Body (@{
+        access_token = $giteeToken; tag_name = $Version; target_commitish = 'main'
         name = $Version; body = $body; prerelease = $false
     } | ConvertTo-Json -Depth 3)
 } catch {
-    throw ('创建发行版失败：' + (& $sanitize $_.Exception.Message))
+    # 已经建过了（重跑发布时常见），取回来继续用
+    $grel = @(Invoke-RestMethod -Uri "$giteeApi/releases" -TimeoutSec 60) | Where-Object { $_.tag_name -eq $Version } | Select-Object -First 1
+    if (-not $grel) { throw ('创建 Gitee 发行版失败：' + (& $sanitize $_.Exception.Message)) }
+    Write-Host "  已有，复用 id=$($grel.id)" -ForegroundColor DarkGray
 }
-Write-Host "  release id = $($rel.id)" -ForegroundColor DarkGray
+Write-Host "  id = $($grel.id)" -ForegroundColor DarkGray
+try { $giteeHave = @((Invoke-RestMethod -Uri "$giteeApi/releases/$($grel.id)" -TimeoutSec 60).assets | ForEach-Object { $_.name }) } catch { }
 
-# 全量上传：dist 下每个文件都传，一个都不落。
 # 传大文件时 Gitee 偶尔会回 400（同样大小的文件有时成有时不成，像是限流），
-# 所以每个文件失败后隔几秒重试两回；每个文件之间也留一点间隔。
+# 所以每个文件失败后隔几秒重试两回。
 foreach ($f in (Get-ChildItem $dist -File | Sort-Object Name)) {
+    if ($giteeHave -contains $f.Name) { Write-Host "  已有 $($f.Name)" -ForegroundColor DarkGray; continue }
     for ($attempt = 1; $attempt -le 3; $attempt++) {
         try {
-            $null = Invoke-RestMethod -Method Post `
-                -Uri "$api/releases/$($rel.id)/attach_files?access_token=$token" `
-                -TimeoutSec 900 -Form @{ file = $f }
+            $null = Invoke-RestMethod -Method Post -Uri "$giteeApi/releases/$($grel.id)/attach_files?access_token=$giteeToken" -TimeoutSec 900 -Form @{ file = $f }
             Write-Host "  已上传 $($f.Name)" -ForegroundColor Green
             break
         } catch {
@@ -241,12 +278,51 @@ foreach ($f in (Get-ChildItem $dist -File | Sort-Object Name)) {
                 Write-Host "  $($f.Name) 第 $attempt 次失败，8 秒后重试" -ForegroundColor Yellow
                 Start-Sleep 8
             } else {
-                Write-Host "  上传失败 $($f.Name)：$(& $sanitize $why)" -ForegroundColor Red
+                Write-Host "  Gitee 上传失败 $($f.Name)：$(& $sanitize $why)" -ForegroundColor Red
             }
         }
     }
     Start-Sleep 2
 }
 
+# ---------- GitHub：镜像与历史存档，不清理 ----------
+Write-Host 'GitHub：创建发行版 ...' -ForegroundColor Cyan
+$ghrel = $null
+try {
+    $ghrel = Invoke-RestMethod -Method Post -Uri "$githubApi/releases" -Headers $githubHeaders -ContentType 'application/json' -TimeoutSec 120 -Body (@{
+        tag_name = $Version; name = $Version; body = $body; draft = $false; prerelease = $false
+    } | ConvertTo-Json -Depth 3)
+} catch {
+    $ghrel = $null
+    try { $ghrel = Invoke-RestMethod -Uri "$githubApi/releases/tags/$Version" -Headers $githubHeaders -TimeoutSec 60 } catch { }
+    if (-not $ghrel) { Write-Host "  创建失败：$(& $sanitize $_.Exception.Message)" -ForegroundColor Red }
+    else { Write-Host "  已有，复用 id=$($ghrel.id)" -ForegroundColor DarkGray }
+}
+
+if ($ghrel) {
+    Write-Host "  id = $($ghrel.id)" -ForegroundColor DarkGray
+    $ghHave = @()
+    try { $ghHave = @(Invoke-RestMethod -Uri "$githubApi/releases/$($ghrel.id)/assets" -Headers $githubHeaders -TimeoutSec 60 | ForEach-Object { $_.name }) } catch { }
+    foreach ($f in (Get-ChildItem $dist -File | Sort-Object Name)) {
+        if ($ghHave -contains $f.Name) { Write-Host "  已有 $($f.Name)" -ForegroundColor DarkGray; continue }
+        for ($attempt = 1; $attempt -le 3; $attempt++) {
+            try {
+                $null = Invoke-RestMethod -Method Post -Uri "$githubUpload/releases/$($ghrel.id)/assets?name=$($f.Name)" -Headers $githubHeaders -ContentType 'application/octet-stream' -InFile $f.FullName -TimeoutSec 1800
+                Write-Host "  已上传 $($f.Name)" -ForegroundColor Green
+                break
+            } catch {
+                if ($attempt -lt 3) {
+                    Write-Host "  $($f.Name) 第 $attempt 次失败，8 秒后重试" -ForegroundColor Yellow
+                    Start-Sleep 8
+                } else {
+                    Write-Host "  GitHub 上传失败 $($f.Name)：$(& $sanitize $_.Exception.Message)" -ForegroundColor Red
+                }
+            }
+        }
+        Start-Sleep 1
+    }
+}
+
 Write-Host ''
-Write-Host "https://gitee.com/ji-or-ji/endfield-monitor/releases/tag/$Version" -ForegroundColor Green
+Write-Host "Gitee  https://gitee.com/$giteeRepo/releases/tag/$Version" -ForegroundColor Green
+Write-Host "GitHub https://github.com/$githubRepo/releases/tag/$Version" -ForegroundColor Green
