@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
+using System.Net.Sockets;
 using System.Threading.Tasks;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -655,6 +658,88 @@ public partial class MainViewModel : ViewModelBase
         IsSettingsOpen = false;
     }
 
+    /// <summary>
+    /// 同机自看的自动档：客户端与采集端放在同一个文件夹时（发行版里的 bundle），
+    /// 由客户端负责把采集端拉起来，省得让人自己开第二个窗口。
+    ///
+    /// 本机已经在监听就不重复拉起——可能用户自己开了一个，留着当被监视端给别的
+    /// 机器看。客户端退出也不去动它拉起来的那个进程：它可能正被别人看着。
+    /// </summary>
+    private static void EnsureLocalCollector(int port)
+    {
+        if (IsLocalPortOpen(port))
+        {
+            return;
+        }
+        var exe = FindBundledCollector();
+        if (exe is null)
+        {
+            return; // 只拿了客户端的版本，没有采集端可拉
+        }
+        try
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                // zip 不保留执行位，补上
+                File.SetUnixFileMode(exe,
+                    File.GetUnixFileMode(exe) | UnixFileMode.UserExecute
+                    | UnixFileMode.GroupExecute | UnixFileMode.OtherExecute);
+            }
+            Process.Start(new ProcessStartInfo(exe)
+            {
+                Arguments = $"--port {port}",
+                WorkingDirectory = Path.GetDirectoryName(exe)!,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            });
+        }
+        catch
+        {
+            // 拉不起来就算了，界面会照常报离线
+        }
+    }
+
+    private static bool IsLocalPortOpen(int port)
+    {
+        try
+        {
+            using var c = new TcpClient();
+            return c.ConnectAsync("127.0.0.1", port).Wait(TimeSpan.FromMilliseconds(300));
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>找同文件夹里的采集端。优先增强版，但普通版也认。</summary>
+    private static string? FindBundledCollector()
+    {
+        var dir = AppContext.BaseDirectory;
+        if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir))
+        {
+            return null;
+        }
+        foreach (var pattern in new[] { "enf-collector-plus-*", "enf-collector-*" })
+        {
+            foreach (var f in Directory.GetFiles(dir, pattern))
+            {
+                if (IsRunnableHere(f))
+                {
+                    return f;
+                }
+            }
+        }
+        return null;
+    }
+
+    /// <summary>Windows 上只认 .exe，其它平台反过来。</summary>
+    private static bool IsRunnableHere(string path)
+    {
+        var isExe = path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase);
+        return OperatingSystem.IsWindows() ? isExe : !isExe;
+    }
+
     private void ApplyConfig()
     {
         // 地址留空就默认连本机：同机自看是最常见的用法，
@@ -664,6 +749,8 @@ public partial class MainViewModel : ViewModelBase
         if (server.Length == 0)
         {
             server = "127.0.0.1:8898";
+            // 同机自看：同文件夹里带着采集端就顺手拉起来，不让人自己开第二个窗口
+            EnsureLocalCollector(8898);
         }
         _client.BaseUrl = "http://" + server;
         _client.Token = _config.Token;

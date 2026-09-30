@@ -120,17 +120,17 @@ foreach ($t in $targets) {
     $howto = @"
 EndfieldMonitor 本机套件（$($t.Os)-$($t.Arch)）
 
-一、在这个文件夹里启动采集端
-    Windows:  .\$collectorName --port 8898
-    Linux:    chmod +x $collectorName
-              ./$collectorName --port 8898
-
-二、打开客户端
+一、打开客户端
     Windows:  双击 $clientName
     Linux:    chmod +x $clientName
               ./$clientName
 
-客户端地址留空就行，它默认连本机 127.0.0.1:8898。
+就这样。客户端会自己把同文件夹里的采集端拉起来，并连上本机
+127.0.0.1:8898，不需要另外开一个窗口。
+
+二（可选）：想用增强版的启停应用与取图标
+    在客户端设置里填一个口令，它会带着这个口令重新拉起采集端。
+    不配口令也能看数据，只是不能用动手指令。
 
 想用增强版的启停应用与取图标：启动采集端时加上 --token 你的口令，
 并在客户端设置里填同一个口令。不配口令也能看数据，只是不能用动手指令。
