@@ -33,6 +33,28 @@ func TestApplyFilePrecedence(t *testing.T) {
 	}
 }
 
+func TestApplyFileLite(t *testing.T) {
+	on, off := true, false
+
+	// 文件里写了才生效
+	cfg := config{}
+	applyFile(&cfg, fileConfig{Lite: &on}, map[string]bool{})
+	if !cfg.lite {
+		t.Fatal("文件里的 lite=true 应生效")
+	}
+	applyFile(&cfg, fileConfig{Lite: &off}, map[string]bool{})
+	if cfg.lite {
+		t.Fatal("文件里的 lite=false 应生效")
+	}
+
+	// 命令行 --lite 优先于文件
+	cfg2 := config{lite: true}
+	applyFile(&cfg2, fileConfig{Lite: &off}, map[string]bool{"lite": true})
+	if !cfg2.lite {
+		t.Fatal("命令行给了 --lite 时，文件不该覆盖")
+	}
+}
+
 func TestParsePorts(t *testing.T) {
 	got := parsePorts("8898, abc ,6099,70000")
 	if len(got) != 2 || got[0] != 8898 || got[1] != 6099 {

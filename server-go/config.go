@@ -18,6 +18,7 @@ type fileConfig struct {
 	WatchProcs []string `json:"watchProcs,omitempty"`
 	WatchPorts []int    `json:"watchPorts,omitempty"`
 	WatchTasks []string `json:"watchTasks,omitempty"`
+	Lite       *bool    `json:"lite,omitempty"`
 }
 
 // defaultConfigPath 取 exe 同目录下的 enf-collector.json。
@@ -69,6 +70,9 @@ func applyFile(cfg *config, file fileConfig, set map[string]bool) {
 	}
 	if !set["watch-tasks"] && file.WatchTasks != nil {
 		cfg.watchTask = file.WatchTasks
+	}
+	if !set["lite"] && file.Lite != nil {
+		cfg.lite = *file.Lite
 	}
 }
 

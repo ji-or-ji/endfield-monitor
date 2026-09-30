@@ -94,6 +94,7 @@ public sealed class ProcInfo
 {
     [JsonPropertyName("pid")]     public int Pid { get; set; }
     [JsonPropertyName("name")]    public string? Name { get; set; }
+    [JsonPropertyName("exe")]     public string? Exe { get; set; }
     [JsonPropertyName("mem")]     public double Mem { get; set; }
     [JsonPropertyName("cpu")]     public double Cpu { get; set; }
     [JsonPropertyName("display")] public string? Display { get; set; }
