@@ -230,7 +230,8 @@ sudo apt install libx11-6 libxrandr2 libxi6 libxcursor1 libxext6 \
                  libxcomposite1 libice6 libsm6 libgl1 libfontconfig1 libfreetype6
 ```
 
-启动后在设置里填被监视机器的地址与口令即可；同机自看就填 `127.0.0.1:8898`。
+启动后在设置里填被监视机器的地址与口令即可；**地址留空就默认连本机**（`127.0.0.1:8898`），
+同机自看不用填任何东西。
 
 ## 构建
 

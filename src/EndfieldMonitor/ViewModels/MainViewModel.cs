@@ -657,7 +657,15 @@ public partial class MainViewModel : ViewModelBase
 
     private void ApplyConfig()
     {
-        _client.BaseUrl = "http://" + AppConfig.NormalizeServer(_config.Server);
+        // 地址留空就默认连本机：同机自看是最常见的用法，
+        // 不该逼人先去想明白“我自己这台机器的地址是什么”。
+        // 填了地址就按填的走（连别的机器）。
+        var server = AppConfig.NormalizeServer(_config.Server);
+        if (server.Length == 0)
+        {
+            server = "127.0.0.1:8898";
+        }
+        _client.BaseUrl = "http://" + server;
         _client.Token = _config.Token;
         ParticleMode = _config.ParticleMode;
         BatchCloud = _config.BatchCloud;
