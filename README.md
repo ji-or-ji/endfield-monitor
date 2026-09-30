@@ -1,4 +1,4 @@
-# EnfieldMonitor · 局域网设备监视台
+# EndfieldMonitor · 局域网设备监视台
 
 界面风格致敬《明日方舟：终末地》，用来实时查看一台机器的运行状况：局域网里跨机看，
 或者就在本机看。不开远程桌面，打开客户端就能看见。
@@ -43,7 +43,7 @@
 
 ```
 [被监视的那台]                          [任意一台设备，也可以就是同一台]
-enf-collector.exe    ──HTTP/JSON──▶  EnfieldMonitor.exe
+enf-collector.exe    ──HTTP/JSON──▶  EndfieldMonitor.exe
 (Go, 1s 采样一次)                     (Avalonia 渲染, 1s 轮询)
 ```
 
@@ -201,7 +201,7 @@ $a = New-ScheduledTaskAction -Execute $exe `
      -Argument "--config `"$cfg`"" -WorkingDirectory (Split-Path $exe)
 $t = New-ScheduledTaskTrigger -AtStartup
 $p = New-ScheduledTaskPrincipal -UserId 'Administrator' -LogonType S4U -RunLevel Highest
-Register-ScheduledTask -TaskName 'EnfieldMonitor' -Action $a -Trigger $t -Principal $p
+Register-ScheduledTask -TaskName 'EndfieldMonitor' -Action $a -Trigger $t -Principal $p
 ```
 
 ## 客户端

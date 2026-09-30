@@ -82,7 +82,7 @@ func printNextSteps(path string, port int) {
 	fmt.Printf("  $a = New-ScheduledTaskAction -Execute $exe -Argument \"--config `\"$cfg`\"\" -WorkingDirectory '%s'\n", dir)
 	fmt.Println("  $t = New-ScheduledTaskTrigger -AtStartup")
 	fmt.Println("  $p = New-ScheduledTaskPrincipal -UserId 'Administrator' -LogonType S4U -RunLevel Highest")
-	fmt.Println("  Register-ScheduledTask -TaskName 'EnfieldMonitor' -Action $a -Trigger $t -Principal $p")
+	fmt.Println("  Register-ScheduledTask -TaskName 'EndfieldMonitor' -Action $a -Trigger $t -Principal $p")
 	fmt.Println()
 }
 
