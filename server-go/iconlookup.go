@@ -7,9 +7,10 @@ package main
 // 因此可以在任何平台上跑单元测试（见 iconlookup_test.go）。
 // 真正读 /proc 与读文件的动作在 icon_linux.go 里。
 //
-// 目录顺序与匹配规则是照 freedesktop 的 Desktop Entry 与 Icon Theme 两套规范写的，
-// 但本项目**尚未在 Linux 真机上核对过**（见 README「增强版」一节的说明）。
-// 因此附带一个诊断开关 --probe-icon，在目标机器上跑一次就能看出是哪一步没对上。
+// 目录顺序与查找规则已对照 Icon Theme Specification 0.13 核实过：扩展名探测顺序
+// （png > svg > xpm）、<主题>/<尺寸>/<应用>/<名字>.<后缀> 的布局、以及无主题图标的兜底，
+// 都与规范的伪代码相符。有两处是按本项目的处境做的取舍，见下面 iconThemes 与
+// findIconFile 的注释。仍然没有在 Linux 真机上核对过，可以用 --probe-icon 自查。
 
 import (
 	"os"
@@ -228,7 +229,7 @@ func iconThemeDirs() []string {
 }
 
 // iconExts 是探图标文件时尝试的后缀，顺序即优先级。
-// SVG 排在 PNG 后面：它需要矢量渲染器才用得上，但毕竟比 XPM 常见。
+// 这个顺序与规范伪代码里的一致（for extension in ("png", "svg", "xpm")）。
 var iconExts = []string{".png", ".svg", ".xpm"}
 
 // iconMime 把后缀映射成 Content-Type。命中的是 SVG 时，返回给客户端的
@@ -287,9 +288,13 @@ func findIconFile(dirs []string, name string) (path, mime string, tried []string
 	return "", "", tried, false
 }
 
-// iconThemes 列出某个图标根目录下的主题。
-// hicolor 排在最前面：它是规范要求所有应用都往里装图标的通用主题，
-// 在没有桌面环境的机器上也是最中立的选择。
+// iconThemes 列出某个图标根目录下的主题，hicolor 排在最前面。
+//
+// 规范里的顺序是「先当前主题，再它继承的父主题，最后才轮到 hicolor」——
+// 但那个顺序建立在有桌面环境、知道“当前主题是哪个”的前提上。采集端可能跑在
+// 没有任何桌面的机器上，那时没有“当前主题”可言，所以把 hicolor 放最前：
+// 它是规范要求所有应用都往里装图标的通用主题，也是最中立的那个。
+// 装了主题的桌面上会因此看不到主题图标，这是已知取舍。
 func iconThemes(dir string) []string {
 	ents, err := os.ReadDir(dir)
 	if err != nil {
