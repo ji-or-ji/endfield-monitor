@@ -19,7 +19,8 @@
 #>
 param(
     [string]$Version,
-    [switch]$Publish
+    [switch]$Publish,
+    [switch]$Prune
 )
 
 $ErrorActionPreference = 'Stop'
@@ -188,6 +189,25 @@ if (Test-Path $notesPath) {
 }
 
 Write-Host "创建发行版 $Version ..." -ForegroundColor Cyan
+
+# -Prune：先清掉旧版本的发行版（附件随之释放），只留最近 2 版。
+# Gitee 的仓库附件配额是 1 GB，全量发几版就会撞上；而且它的 API 没有删附件的接口，
+# 只能连整个发行版一起删（tag 会留着，代码不受影响）。
+# 历史版本放网盘，release 只留最近两版。
+if ($Prune) {
+    Write-Host '  清理旧版本（只留最近 2 版）...' -ForegroundColor Yellow
+    $all = @(Invoke-RestMethod -Method Get -Uri "$api/releases" -TimeoutSec 60) | Sort-Object created_at -Descending
+    $keep = @($all | Select-Object -First 2 | ForEach-Object { $_.tag_name }) + $Version
+    foreach ($r in $all) {
+        if ($keep -contains $r.tag_name) { continue }
+        try {
+            Invoke-RestMethod -Method Delete -Uri "$api/releases/$($r.id)?access_token=$token" -TimeoutSec 60 | Out-Null
+            Write-Host "    已删 $($r.tag_name)（tag 保留）" -ForegroundColor DarkGray
+        } catch {
+            Write-Host "    删 $($r.tag_name) 失败：$(& $sanitize $_.Exception.Message)" -ForegroundColor Red
+        }
+    }
+}
 try {
     $rel = Invoke-RestMethod -Method Post -Uri "$api/releases" -ContentType 'application/json' -TimeoutSec 120 -Body (@{
         access_token = $token; tag_name = $Version; target_commitish = 'main'
@@ -198,16 +218,34 @@ try {
 }
 Write-Host "  release id = $($rel.id)" -ForegroundColor DarkGray
 
-# 全量上传：dist 下每个文件都传，一个都不落
+# 全量上传：dist 下每个文件都传，一个都不落。
+# 传大文件时 Gitee 偶尔会回 400（同样大小的文件有时成有时不成，像是限流），
+# 所以每个文件失败后隔几秒重试两回；每个文件之间也留一点间隔。
 foreach ($f in (Get-ChildItem $dist -File | Sort-Object Name)) {
-    try {
-        $null = Invoke-RestMethod -Method Post `
-            -Uri "$api/releases/$($rel.id)/attach_files?access_token=$token" `
-            -TimeoutSec 900 -Form @{ file = $f }
-        Write-Host "  已上传 $($f.Name)" -ForegroundColor Green
-    } catch {
-        Write-Host "  上传失败 $($f.Name)：$(& $sanitize $_.Exception.Message)" -ForegroundColor Red
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        try {
+            $null = Invoke-RestMethod -Method Post `
+                -Uri "$api/releases/$($rel.id)/attach_files?access_token=$token" `
+                -TimeoutSec 900 -Form @{ file = $f }
+            Write-Host "  已上传 $($f.Name)" -ForegroundColor Green
+            break
+        } catch {
+            # 把服务端的错误正文一并打出来。只报状态码的话，
+            # 「400」这种会让人往文件本身猜，而实际原因（配额、权限、限流）就在正文里。
+            $resp = $_.Exception.Response
+            $why = ''
+            if ($resp) {
+                try { $why = (New-Object IO.StreamReader($resp.GetResponseStream())).ReadToEnd() } catch { }
+            }
+            if ($attempt -lt 3) {
+                Write-Host "  $($f.Name) 第 $attempt 次失败，8 秒后重试" -ForegroundColor Yellow
+                Start-Sleep 8
+            } else {
+                Write-Host "  上传失败 $($f.Name)：$(& $sanitize $why)" -ForegroundColor Red
+            }
+        }
     }
+    Start-Sleep 2
 }
 
 Write-Host ''
