@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/shirou/gopsutil/v4/cpu"
@@ -23,6 +24,11 @@ const (
 	taskInterval = 60 * time.Second // 计划任务等慢查询
 	netInterval  = 60 * time.Second // 主网卡链路速率刷新
 	procLimit    = 24               // 快照里带的进程条数，与客户端展示一致
+
+	// 超过这段时间没人拉快照，就认为没人在看，两条采样循环都放慢。
+	procIdleAfter    = 30 * time.Second
+	procIdleInterval = 30 * time.Second
+	fastIdleInterval = 5 * time.Second
 )
 
 type config struct {
@@ -47,6 +53,11 @@ var (
 	procsAll  []ProcInfo
 	tasksAll  []TaskInfo
 	service   *ServiceInfo
+
+	// 有人拉快照就说明有人在看；没人在看时采样放慢。
+	lastPull atomic.Int64 // Unix 秒
+	procKick = make(chan struct{}, 1)
+	fastKick = make(chan struct{}, 1)
 )
 
 func splitCSV(s string) []string {
@@ -151,6 +162,7 @@ func main() {
 			writeJSON(w, 401, map[string]any{"error": "unauthorized"})
 			return
 		}
+		markPull()
 		stateMu.RLock()
 		s := snap
 		stateMu.RUnlock()
@@ -182,8 +194,14 @@ func main() {
 
 // ================= 后台采集 =================
 
-// procLoop 每 2 秒采一次进程与关注服务，放进缓存。
+// procLoop 采进程与关注服务，放进缓存。
+//
+// 全量枚举进程一次要十几毫秒（NtQuerySystemInformation 会把线程一起快照），
+// 是采集端最贵的一项。没人在看的时候没必要 2 秒采一次，放慢到 30 秒；
+// 客户端一拉快照就把它叫醒，补一次新的，界面上看不出差别。
 func procLoop() {
+	// 状态切换时说一声，方便看出它什么时候在偷懒、什么时候真在干活
+	wasIdle := false
 	for {
 		ps := collectProcs()
 
@@ -197,7 +215,45 @@ func procLoop() {
 		service = svc
 		collectMu.Unlock()
 
-		time.Sleep(procInterval)
+		idle := watchIdle()
+		if idle != wasIdle {
+			if idle {
+				fmt.Println("[collector] 没人拉快照，进程采样放慢到 30 秒")
+			} else {
+				fmt.Println("[collector] 有客户端在拉，进程采样恢复 2 秒")
+			}
+			wasIdle = idle
+		}
+
+		d := procInterval
+		if idle {
+			d = procIdleInterval
+		}
+		select {
+		case <-time.After(d):
+		case <-procKick:
+		}
+	}
+}
+
+// watchIdle 判断是不是已经有一阵子没人拉过快照。
+func watchIdle() bool {
+	t := lastPull.Load()
+	return t == 0 || time.Since(time.Unix(t, 0)) > procIdleAfter
+}
+
+// markPull 记录一次快照拉取。只在“从没人看变成有人看”的那一刻叫醒采样循环，
+// 平时连拉不打扰它们，免得把节奏压成每拉一次就采一次。
+func markPull() {
+	now := time.Now()
+	prev := lastPull.Swap(now.Unix())
+	if prev == 0 || now.Sub(time.Unix(prev, 0)) > procIdleAfter {
+		for _, ch := range []chan struct{}{procKick, fastKick} {
+			select {
+			case ch <- struct{}{}:
+			default:
+			}
+		}
 	}
 }
 
@@ -227,10 +283,17 @@ func sampleLoop() {
 	prevNet := readNet()
 	prevAt := time.Now()
 
-	ticker := time.NewTicker(fastInterval)
-	defer ticker.Stop()
+	for {
+		// 没人看的时候不必每秒采一次，有客户端来拉再立刻恢复
+		d := fastInterval
+		if watchIdle() {
+			d = fastIdleInterval
+		}
+		select {
+		case <-time.After(d):
+		case <-fastKick:
+		}
 
-	for range ticker.C {
 		perfTick()
 		now := time.Now()
 		dt := now.Sub(prevAt).Seconds()
@@ -255,7 +318,7 @@ func sampleLoop() {
 
 		s := &Snapshot{
 			Ts:       float64(now.UnixMilli()) / 1000.0,
-			Interval: fastInterval.Seconds(),
+			Interval: dt, // 实际间隔；空闲期会变长，速率按真实 dt 算
 			Live:     true,
 			CPU:      readCPU(),
 			GPU:      readGPU(),
