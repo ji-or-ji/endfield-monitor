@@ -86,6 +86,7 @@ func main() {
 	flag.StringVar(&portCSV, "watch-ports", "", "要盯的端口，逗号分隔，如 6099,7998")
 	flag.StringVar(&taskCSV, "watch-tasks", "", "计划任务名，逗号分隔")
 	flag.StringVar(&configPath, "config", "", "配置文件路径，默认取 exe 同目录的 enf-collector.json")
+	flag.BoolVar(&setup, "setup", false, "交互式生成配置文件，写完即退出")
 	flag.IntVar(&probeIconPid, "probe-icon", 0, "诊断用：打印该 pid 的图标查找全过程后退出")
 	flag.BoolVar(&cfg.lite, "lite", false, "轻量模式：没人拉快照时自动放慢采样（默认关闭，始终按固定节拍）")
 	flag.Parse()
