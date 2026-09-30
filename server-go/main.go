@@ -313,6 +313,45 @@ func netLoop() {
 	}
 }
 
+// 增强版动过手的记录，留着便于事后查。只保留最近 auditLimit 条。
+const auditLimit = 50
+
+var (
+	auditMu  sync.Mutex
+	auditLog []AuditEntry
+)
+
+// recordAudit 记一条操作。
+func recordAudit(e AuditEntry) {
+	auditMu.Lock()
+	defer auditMu.Unlock()
+	auditLog = append(auditLog, e)
+	if len(auditLog) > auditLimit {
+		auditLog = auditLog[len(auditLog)-auditLimit:]
+	}
+}
+
+// recentAudit 返回现有记录的副本；一次都没动过手时返回 nil（快照里就不出现这个键）。
+func recentAudit() []AuditEntry {
+	auditMu.Lock()
+	defer auditMu.Unlock()
+	if len(auditLog) == 0 {
+		return nil
+	}
+	out := make([]AuditEntry, len(auditLog))
+	copy(out, auditLog)
+	return out
+}
+
+// auditOf 拼一条审计记录，进程名取当前快照里的，便于事后认人。
+func auditOf(at, action string, pid int32, r *http.Request, ok bool, errMsg string) AuditEntry {
+	e := AuditEntry{At: at, Action: action, Pid: pid, From: r.RemoteAddr, OK: ok, Err: errMsg}
+	if p := lookupProc(pid); p != nil {
+		e.Name = p.Name
+	}
+	return e
+}
+
 // capabilities 列出这一份构建提供的能力。普通版为空；
 // 增强版（-tags plus）才有，客户端据此切增强模式。
 func capabilities() []string {
@@ -347,17 +386,17 @@ func appPidArg(w http.ResponseWriter, r *http.Request) (int32, bool) {
 	return int32(v), true
 }
 
-// exeOfPid 在最近一次采到的全量进程里找这个 pid 的可执行文件路径。
-// 取图标只认这里面的 pid，外部传不进任意路径。
-func exeOfPid(pid int32) string {
+// lookupProc 在最近一次采到的全量进程里找这个 pid。
+// 动手指令只认这里面的 pid，外部传不进任意路径。
+func lookupProc(pid int32) *ProcInfo {
 	collectMu.RLock()
 	defer collectMu.RUnlock()
-	for _, p := range procsAll {
-		if p.Pid == pid {
-			return p.Exe
+	for i := range procsAll {
+		if procsAll[i].Pid == pid {
+			return &procsAll[i]
 		}
 	}
-	return ""
+	return nil
 }
 
 // handleAppStop 结束一个进程（含其子进程）。
@@ -369,12 +408,15 @@ func handleAppStop(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	at := time.Now().Format("2006-01-02 15:04:05")
 	if err := stopApp(pid); err != nil {
-		fmt.Printf("[collector] 结束进程 %d 失败: %v\n", pid, err)
+		fmt.Printf("[collector] %s 结束进程 %d 失败：%v\n", at, pid, err)
+		recordAudit(auditOf(at, "stop", pid, r, false, err.Error()))
 		writeJSON(w, 500, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	fmt.Printf("[collector] 已结束进程 %d（来自 %s）\n", pid, r.RemoteAddr)
+	fmt.Printf("[collector] %s 已结束进程 %d（来自 %s）\n", at, pid, r.RemoteAddr)
+	recordAudit(auditOf(at, "stop", pid, r, true, ""))
 	writeJSON(w, 200, map[string]any{"ok": true})
 }
 
@@ -387,12 +429,15 @@ func handleAppRestart(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	at := time.Now().Format("2006-01-02 15:04:05")
 	if err := restartApp(pid); err != nil {
-		fmt.Printf("[collector] 重启进程 %d 失败: %v\n", pid, err)
+		fmt.Printf("[collector] %s 重启进程 %d 失败：%v\n", at, pid, err)
+		recordAudit(auditOf(at, "restart", pid, r, false, err.Error()))
 		writeJSON(w, 500, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	fmt.Printf("[collector] 已重启进程 %d（来自 %s）\n", pid, r.RemoteAddr)
+	fmt.Printf("[collector] %s 已重启进程 %d（来自 %s）\n", at, pid, r.RemoteAddr)
+	recordAudit(auditOf(at, "restart", pid, r, true, ""))
 	writeJSON(w, 200, map[string]any{"ok": true})
 }
 
@@ -408,7 +453,10 @@ func handleAppIcon(w http.ResponseWriter, r *http.Request) {
 	}
 	// exe 只是走近路：Linux 那边拿不到时会自己从 /proc 读。
 	// 图标不会变，按 exe 路径缓存；拿不到路径时就不缓存。
-	exe := exeOfPid(pid)
+	var exe string
+	if p := lookupProc(pid); p != nil {
+		exe = p.Exe
+	}
 	if data, mime, ok := cacheGet(exe); ok {
 		writeIcon(w, data, mime)
 		return
@@ -527,6 +575,7 @@ func readServer(svc *ServiceInfo, tasks []TaskInfo) *ServerInfo {
 	srv := &ServerInfo{
 		Host:        static.Host,
 		UptimeHours: float64(up) / 3600.0,
+		Audit:       recentAudit(),
 	}
 	if svc != nil {
 		// 复制一份再挂任务，避免改动 procLoop 正在维护的缓存对象
