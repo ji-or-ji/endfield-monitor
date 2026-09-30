@@ -20,7 +20,8 @@
 param(
     [string]$Version,
     [switch]$Publish,
-    [switch]$Prune
+    [switch]$Prune,
+    [switch]$GitHubAssets
 )
 
 $ErrorActionPreference = 'Stop'
@@ -249,9 +250,17 @@ try {
         name = $Version; body = $body; prerelease = $false
     } | ConvertTo-Json -Depth 3)
 } catch {
-    # 已经建过了（重跑发布时常见），取回来继续用
-    $grel = @(Invoke-RestMethod -Uri "$giteeApi/releases" -TimeoutSec 60) | Where-Object { $_.tag_name -eq $Version } | Select-Object -First 1
-    if (-not $grel) { throw ('创建 Gitee 发行版失败：' + (& $sanitize $_.Exception.Message)) }
+    # 已经建过了（重跑发布时常见），取回来继续用。
+    # Gitee 没有“按 tag 查发行版”的接口，只能列出来筛；这里比较两头都转成字符串、
+    # 显式取第一个、并校验数量——曾经因为筛出来的不是一个对象，拼出过一个带四个 id 的
+    # 上传地址，结果 13 个文件全部失败。
+    $hit = @()
+    try {
+        $hit = @(@(Invoke-RestMethod -Uri "$giteeApi/releases" -TimeoutSec 60) |
+            Where-Object { "$($_.tag_name)" -eq "$Version" })
+    } catch { }
+    if (@($hit).Count -lt 1) { throw ('创建 Gitee 发行版失败：' + (& $sanitize $_.Exception.Message)) }
+    $grel = @($hit)[0]
     Write-Host "  已有，复用 id=$($grel.id)" -ForegroundColor DarkGray
 }
 Write-Host "  id = $($grel.id)" -ForegroundColor DarkGray
@@ -285,8 +294,12 @@ foreach ($f in (Get-ChildItem $dist -File | Sort-Object Name)) {
     Start-Sleep 2
 }
 
-# ---------- GitHub：镜像与历史存档，不清理 ----------
-Write-Host 'GitHub：创建发行版 ...' -ForegroundColor Cyan
+# ---------- GitHub：默认只镜像代码，不建发行版 ----------
+# 产物的历史归档暂时不做：项目还在快速变动，发行版只留最近两版，
+# 需要旧版的走 issue。真要把产物也传到 GitHub 时加 -GitHubAssets——
+# 但本地网络到 GitHub 很慢（实测单次 API 调用约 3 秒），大文件上传不现实。
+if ($GitHubAssets) {
+    Write-Host 'GitHub：创建发行版 ...' -ForegroundColor Cyan
 $ghrel = $null
 try {
     $ghrel = Invoke-RestMethod -Method Post -Uri "$githubApi/releases" -Headers $githubHeaders -ContentType 'application/json' -TimeoutSec 120 -Body (@{
@@ -323,6 +336,8 @@ if ($ghrel) {
     }
 }
 
+}
+
 Write-Host ''
-Write-Host "Gitee  https://gitee.com/$giteeRepo/releases/tag/$Version" -ForegroundColor Green
-Write-Host "GitHub https://github.com/$githubRepo/releases/tag/$Version" -ForegroundColor Green
+Write-Host "Gitee   https://gitee.com/$giteeRepo/releases/tag/$Version" -ForegroundColor Green
+Write-Host "GitHub  https://github.com/$githubRepo  （只镜像代码）" -ForegroundColor DarkGray

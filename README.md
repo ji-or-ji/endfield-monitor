@@ -3,8 +3,9 @@
 界面风格致敬《明日方舟：终末地》，用来实时查看一台机器的运行状况：局域网里跨机看，
 或者就在本机看。不开远程桌面，打开客户端就能看见。
 
-项目在 Gitee 与 GitHub 各有一份：**Gitee 是主仓库**（最近两个版本的产物在这里），
-**GitHub 是镜像**（代码同步过去，历史版本存在那边的发行版里）。
+项目在 Gitee 与 GitHub 各有一份：**Gitee 是主仓库**，**GitHub 是代码镜像**（不挂发行版产物）。
+项目还在快速变动，**发行版只保留最近两个版本**，暂不做历史归档；
+需要旧版的请在 issue 里说明，我按需重新构建。
 https://gitee.com/ji-or-ji/endfield-monitor · https://github.com/ji-or-ji/endfield-monitor
 
 ![主界面](docs/overview.png)
