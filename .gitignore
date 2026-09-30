@@ -15,7 +15,9 @@ reference/
 *.local.json
 
 # Go 服务端构建产物与运行日志
+# （*.exe~ 是 Windows 覆盖运行中 exe 时留下的备份文件，别让它进仓库）
 server-go/*.exe
+server-go/*.exe~
 server-go/*.log
 
 # Python 字节码（server/ 下的旧采集端曾把 __pycache__ 一并提交进来）

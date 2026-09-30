@@ -21,8 +21,16 @@ type netSample struct{ recv, sent uint64 }
 // 名字对不上时退回聚合值，只提醒一次，不每次采样都刷屏。
 var netFallbackOnce sync.Once
 
-// readNet 只统计主网卡，名字对不上时退回所有网卡的聚合值。
+// readNet 只统计主网卡。
+//
+// 优先走平台特化的单接口读取：gopsutil 的 IOCounters 会先枚举全部网卡
+// （这台机器上几十块虚拟网卡），再逐块查一遍，实测每次 10ms；按索引直接查
+// 一块只要几微秒。取不到时退回 gopsutil，最后退回全部网卡的聚合值。
 func readNet() netSample {
+	if s, ok := readNetIf(); ok {
+		return s
+	}
+
 	name, _ := currentNetwork()
 	if name != "" {
 		if cs, err := gnet.IOCounters(true); err == nil {
@@ -191,12 +199,11 @@ func collectProcs() []ProcInfo {
 			cpuPct = 0
 		}
 
-		// 可执行文件路径：客户端目前未消费，预留给按路径区分同名进程 / 白名单过滤
-		exe, _ := p.Exe()
+		// 可执行文件路径不在这里取：读一次 PEB 要开句柄，全表下来实测 7ms，
+		// 而客户端并不消费这个字段。将来真要用（按路径区分同名进程之类）再加。
 		out = append(out, ProcInfo{
 			Pid:   p.Pid,
 			Name:  name,
-			Exe:   exe,
 			Mem:   round1(rss),
 			CPU:   round1(cpuPct / ncpu),
 			Title: titles[p.Pid],

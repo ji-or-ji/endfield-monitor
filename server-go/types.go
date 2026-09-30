@@ -79,7 +79,6 @@ type BatteryInfo struct {
 type ProcInfo struct {
 	Pid     int32   `json:"pid"`
 	Name    string  `json:"name"`
-	Exe     string  `json:"exe"`
 	Mem     float64 `json:"mem"`
 	CPU     float64 `json:"cpu"`
 	Display string  `json:"display"`

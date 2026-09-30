@@ -15,6 +15,8 @@ func setNetwork(name string, link float64) {
 	netMu.Lock()
 	netName, netLink = name, link
 	netMu.Unlock()
+	// 顺带把平台侧的接口句柄（Windows 上是接口索引）换掉
+	prepareNetInterface(name)
 }
 
 func currentNetwork() (string, float64) {
