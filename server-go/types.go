@@ -14,6 +14,10 @@ type Snapshot struct {
 	Battery  BatteryInfo `json:"battery"`
 	Procs    []ProcInfo  `json:"procs"`
 	Server   *ServerInfo `json:"server"`
+
+	// 这一份服务端能做什么。普通版为空（用 omitempty，键都不出现）；
+	// 增强版（plus）会列出可动的指令，客户端据此切增强模式。
+	Capabilities []string `json:"capabilities,omitempty"`
 }
 
 type CPUInfo struct {

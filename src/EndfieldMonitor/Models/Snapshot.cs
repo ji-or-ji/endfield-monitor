@@ -22,6 +22,10 @@ public sealed class Snapshot
     [JsonPropertyName("battery")] public BatteryInfo Battery { get; set; } = new();
     [JsonPropertyName("procs")]   public List<ProcInfo> Procs { get; set; } = new();
 
+    // 服务端能做什么。普通版是空的；增强版（plus）会列出可用的动手指令。
+    // 客户端据此切增强模式，界面部分待定。
+    [JsonPropertyName("capabilities")] public List<string> Capabilities { get; set; } = new();
+
     /// <summary>麦麦业务扩展块，本项目相对原采集端的增量。</summary>
     [JsonPropertyName("server")] public ServerInfo? Server { get; set; }
 }

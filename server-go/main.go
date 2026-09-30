@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -148,6 +149,13 @@ func main() {
 		fmt.Println("[collector] 采样模式: 主要（始终按固定节拍）")
 	}
 
+	if plusBuild {
+		fmt.Println("[collector] 版本: 增强版（plus），提供启停应用与取图标")
+		if cfg.token == "" {
+			fmt.Println("[collector] 警告: 增强版未设置共享口令，启停操作会被拒绝——先配上再说")
+		}
+	}
+
 	name, link := currentNetwork()
 	fmt.Printf("[collector] 主网卡: %s (%.0f Mbps)\n", name, link)
 
@@ -180,6 +188,13 @@ func main() {
 		}
 		writeJSON(w, 200, s)
 	})
+
+	// 增强版才有：启停应用、取图标。普通版连路由都不注册。
+	if plusBuild {
+		mux.HandleFunc("/app/stop", handleAppStop)
+		mux.HandleFunc("/app/restart", handleAppRestart)
+		mux.HandleFunc("/app/icon", handleAppIcon)
+	}
 
 	addr := fmt.Sprintf("%s:%d", cfg.host, cfg.port)
 	if cfg.token == "" && cfg.host != "127.0.0.1" && cfg.host != "localhost" {
@@ -290,6 +305,116 @@ func netLoop() {
 	}
 }
 
+// capabilities 列出这一份构建提供的能力。普通版为空；
+// 增强版（-tags plus）才有，客户端据此切增强模式。
+func capabilities() []string {
+	if !plusBuild {
+		return nil
+	}
+	return []string{"app.stop", "app.restart", "app.icon"}
+}
+
+// allowAppControl 判断这次请求能不能动别人的机器。
+// 增强版的两道硬门槛：先过口令校验，而且服务端必须真的配了口令。
+// 否则任何知道地址的人都能停掉你的进程。
+func allowAppControl(w http.ResponseWriter, r *http.Request) bool {
+	if !authorized(r) {
+		writeJSON(w, 401, map[string]any{"error": "unauthorized"})
+		return false
+	}
+	if cfg.token == "" {
+		writeJSON(w, 403, map[string]any{"error": "增强操作要求服务端先配置共享口令（--token 或配置文件）"})
+		return false
+	}
+	return true
+}
+
+// appPidArg 取出并校验 ?pid=。
+func appPidArg(w http.ResponseWriter, r *http.Request) (int32, bool) {
+	v, err := strconv.Atoi(r.URL.Query().Get("pid"))
+	if err != nil || v <= 0 {
+		writeJSON(w, 400, map[string]any{"error": "缺少合法的 pid"})
+		return 0, false
+	}
+	return int32(v), true
+}
+
+// exeOfPid 在最近一次采到的全量进程里找这个 pid 的可执行文件路径。
+// 取图标只认这里面的 pid，外部传不进任意路径。
+func exeOfPid(pid int32) string {
+	collectMu.RLock()
+	defer collectMu.RUnlock()
+	for _, p := range procsAll {
+		if p.Pid == pid {
+			return p.Exe
+		}
+	}
+	return ""
+}
+
+// handleAppStop 结束一个进程（含其子进程）。
+func handleAppStop(w http.ResponseWriter, r *http.Request) {
+	if !allowAppControl(w, r) {
+		return
+	}
+	pid, ok := appPidArg(w, r)
+	if !ok {
+		return
+	}
+	if err := stopApp(pid); err != nil {
+		fmt.Printf("[collector] 结束进程 %d 失败: %v\n", pid, err)
+		writeJSON(w, 500, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	fmt.Printf("[collector] 已结束进程 %d（来自 %s）\n", pid, r.RemoteAddr)
+	writeJSON(w, 200, map[string]any{"ok": true})
+}
+
+// handleAppRestart 用原路径与参数重启一个进程。
+func handleAppRestart(w http.ResponseWriter, r *http.Request) {
+	if !allowAppControl(w, r) {
+		return
+	}
+	pid, ok := appPidArg(w, r)
+	if !ok {
+		return
+	}
+	if err := restartApp(pid); err != nil {
+		fmt.Printf("[collector] 重启进程 %d 失败: %v\n", pid, err)
+		writeJSON(w, 500, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	fmt.Printf("[collector] 已重启进程 %d（来自 %s）\n", pid, r.RemoteAddr)
+	writeJSON(w, 200, map[string]any{"ok": true})
+}
+
+// handleAppIcon 返回该进程可执行文件的图标（PNG）。
+func handleAppIcon(w http.ResponseWriter, r *http.Request) {
+	if !authorized(r) {
+		writeJSON(w, 401, map[string]any{"error": "unauthorized"})
+		return
+	}
+	pid, ok := appPidArg(w, r)
+	if !ok {
+		return
+	}
+	exe := exeOfPid(pid)
+	if exe == "" {
+		writeJSON(w, 404, map[string]any{"error": "这个 pid 不在最近的快照里"})
+		return
+	}
+	data, err := appIconPNG(exe)
+	if err != nil {
+		writeJSON(w, 404, map[string]any{"error": err.Error()})
+		return
+	}
+	// 图标不会变，让客户端放心缓存
+	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Cache-Control", "max-age=86400")
+	w.WriteHeader(200)
+	_, _ = w.Write(data)
+}
+
 func sampleLoop() {
 	// CPU 百分比需要至少两次调用才能出差值，先预热
 	_, _ = cpu.Percent(0, false)
@@ -342,6 +467,8 @@ func sampleLoop() {
 			Battery:  readBatteryInfo(),
 			Procs:    snapProcs,
 			Server:   readServer(svc, tasks),
+
+			Capabilities: capabilities(),
 		}
 
 		prevNet = curNet
