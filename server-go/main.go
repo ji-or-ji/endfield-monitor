@@ -344,13 +344,13 @@ func readCPU() CPUInfo {
 	if v, err := cpu.Percent(0, false); err == nil && len(v) > 0 {
 		util = round1(v[0])
 	}
-	// 实时频率走性能计数器（Processor Frequency）。
-	// gopsutil 的 cpu.Info() 在 Windows 上给的是标称上限，不是当前频率。
+	// 实时频率 = 基准频率 × % Processor Performance。
+	// 直接读“Processor Frequency”计数器拿到的是各核加权平均，看不出睿频。
 	freq := static.CPUBase
-	if f, ok := perfCPUFreqGHz(); ok {
-		freq = f
-		if f > cpuPeakGHz {
-			cpuPeakGHz = f
+	if pct, ok := perfCPUPerfPct(); ok {
+		freq = round2(static.CPUBase * pct / 100.0)
+		if freq > cpuPeakGHz {
+			cpuPeakGHz = freq
 		}
 	}
 	return CPUInfo{
