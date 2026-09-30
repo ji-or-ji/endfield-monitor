@@ -250,17 +250,14 @@ try {
         name = $Version; body = $body; prerelease = $false
     } | ConvertTo-Json -Depth 3)
 } catch {
-    # 已经建过了（重跑发布时常见），取回来继续用。
-    # Gitee 没有“按 tag 查发行版”的接口，只能列出来筛；这里比较两头都转成字符串、
-    # 显式取第一个、并校验数量——曾经因为筛出来的不是一个对象，拼出过一个带四个 id 的
-    # 上传地址，结果 13 个文件全部失败。
-    $hit = @()
+    # 已经建过了（重跑发布时常见），按 tag 直查取回来。
+    # 之前用的是“列出全部再筛”的写法，结果在这台机器上时好时坏（同一句有时命中 1 条、
+    # 有时 0 条，甚至拼出过带四个 id 的上传地址，13 个文件全失败）；直查接口每次都是确定的。
+    $grel = $null
     try {
-        $hit = @(@(Invoke-RestMethod -Uri "$giteeApi/releases" -TimeoutSec 60) |
-            Where-Object { "$($_.tag_name)" -eq "$Version" })
+        $grel = Invoke-RestMethod -Uri "$giteeApi/releases/tags/$Version" -TimeoutSec 60
     } catch { }
-    if (@($hit).Count -lt 1) { throw ('创建 Gitee 发行版失败：' + (& $sanitize $_.Exception.Message)) }
-    $grel = @($hit)[0]
+    if (-not $grel) { throw ('创建 Gitee 发行版失败，且按 tag 也查不到：' + (& $sanitize $_.Exception.Message)) }
     Write-Host "  已有，复用 id=$($grel.id)" -ForegroundColor DarkGray
 }
 Write-Host "  id = $($grel.id)" -ForegroundColor DarkGray
