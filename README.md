@@ -143,6 +143,28 @@ enf-collector.exe    ──HTTP/JSON──▶  EnfieldMonitor.exe
 都不比 gopsutil（31 ms）快，而后者还只给 pid 和映像名。所以轻量模式压的是**采样频率**，
 不是单次成本。
 
+### 增强版（plus）
+
+同一份源码可以编出两个产物：
+
+```powershell
+go build -ldflags "-s -w" -o enf-collector.exe .                 # 普通版：只读
+go build -tags plus -ldflags "-s -w" -o enf-collector-plus.exe . # 增强版：多出动手能力
+```
+
+增强版会在快照里声明 `capabilities`（普通版连这个键都没有），目前带三样：
+
+| 能力 | 端点 | 作用 |
+| --- | --- | --- |
+| `app.stop` | `GET /app/stop?pid=` | 结束进程，连同它派生的子进程 |
+| `app.restart` | `GET /app/restart?pid=` | 用原路径与参数重启 |
+| `app.icon` | `GET /app/icon?pid=` | 该进程可执行文件的图标（PNG） |
+
+**安全**：前两个端点要求服务端**必须配了共享口令**（`--token` 或配置文件），否则一律 403；
+增强版启动时没配口令会打印警告。取图标只认快照里出现过的 pid，外部传不进任意路径。
+
+客户端探测到 `capabilities` 非空就知道对面是增强版。界面部分还没接。
+
 ### 放行防火墙
 
 ```powershell

@@ -23,6 +23,9 @@ public partial class MainViewModel : ViewModelBase
     public ObservableCollection<DeviceRowViewModel> Devices { get; } = new();
     public ObservableCollection<DetailRowViewModel> DetailRows { get; } = new();
 
+    /// <summary>对面是不是增强版（plus）。界面还没接，先把状态立起来。</summary>
+    [ObservableProperty] public partial bool IsPlus { get; set; }
+
     [ObservableProperty] public partial double Composite { get; set; }
     [ObservableProperty] public partial double MemPercent { get; set; }
 
@@ -153,6 +156,9 @@ public partial class MainViewModel : ViewModelBase
                 ApplySnapshot(snap);
                 _lastLiveAt = DateTime.Now;
                 _lastRefresh = DateTime.Now;
+                // 识别对面是不是增强版（plus）：它会在快照里声明自己的动手指令。
+                // 增强模式的界面还没接，等对着真界面定下加在哪再动。
+                IsPlus = snap.Capabilities.Count > 0;
                 if (!IsLive)
                 {
                     IsLive = true;
