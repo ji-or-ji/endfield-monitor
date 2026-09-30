@@ -204,7 +204,8 @@
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate x:DataType="vm:AppRowViewModel">
                                                 <Border Background="{StaticResource Panel2Brush}" BorderBrush="#E2E2DE"
-                                                        BorderThickness="1" Margin="0,0,0,7" Padding="10,7">
+                                                        BorderThickness="1" Margin="0,0,0,7" Padding="10,7"
+                                                        ToolTip.Tip="{Binding Tip}">
                                                     <Grid ColumnDefinitions="*,130,150">
                                                         <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12">
                                                             <Border Width="38" Height="38" Background="{StaticResource Dark2Brush}">
@@ -212,7 +213,10 @@
                                                             </Border>
                                                             <StackPanel VerticalAlignment="Center">
                                                                 <TextBlock Text="{Binding Name}" FontSize="14" Foreground="#454540" />
-                                                                <TextBlock Text="{Binding Sub}" FontSize="11"
+                                                                <TextBlock Text="{Binding Sub}" IsVisible="{Binding HasTitle}" FontSize="11"
+                                                                           Foreground="{StaticResource TextDimBrush}" />
+                                                                <TextBlock Text="{Binding Exe}" IsVisible="{Binding HasExe}"
+                                                                           FontSize="10" TextTrimming="CharacterEllipsis"
                                                                            Foreground="{StaticResource TextDimBrush}" />
                                                             </StackPanel>
                                                         </StackPanel>

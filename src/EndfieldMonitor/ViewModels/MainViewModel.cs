@@ -203,6 +203,26 @@ public partial class MainViewModel : ViewModelBase
         LastRefreshText = sec < 3 ? "刚刚" : $"{sec} 秒前";
     }
 
+    /// <summary>
+    /// 路径太长时只留尾巴，前面的目录折成“…”：用来区分程序的是目录名加文件名，
+    /// 头部多半是 C:\Program Files 这类公共前缀。完整路径挂在悬停提示里。
+    /// </summary>
+    private static string ShortenPath(string? exe, int keep = 56)
+    {
+        if (string.IsNullOrEmpty(exe) || exe.Length <= keep)
+        {
+            return exe ?? "";
+        }
+        int cut = exe.Length - keep;
+        // 从分隔符之后开始，别切出半个目录名
+        int slash = exe.IndexOf('\\', cut);
+        if (slash >= 0 && slash < exe.Length - 8)
+        {
+            cut = slash + 1;
+        }
+        return "…\\" + exe[cut..];
+    }
+
     private void ApplyApps(List<ProcInfo> procs)
     {
         var top = procs.Take(24).ToList();
@@ -217,8 +237,14 @@ public partial class MainViewModel : ViewModelBase
                 Apps.Add(new AppRowViewModel
                 {
                     Name = string.IsNullOrWhiteSpace(p.Display) ? (p.Name ?? "?") : p.Display!,
-                    Sub = string.IsNullOrWhiteSpace(p.Title) ? (p.Name ?? "") : p.Title!,
+                    // 副标题只留给窗口标题；没有就不占位，别把进程名重复一遍
+                    Sub = p.Title ?? "",
+                    HasTitle = !string.IsNullOrWhiteSpace(p.Title),
                     Icon = IconLibrary.Get(IconLibrary.KeyFor((p.Name ?? "") + " " + (p.Display ?? ""))),
+                    // 可执行文件路径：同名进程靠它区分（好几个 chrome、几个 python 之类）
+                    Exe = ShortenPath(p.Exe),
+                    HasExe = !string.IsNullOrWhiteSpace(p.Exe),
+                    Tip = string.IsNullOrWhiteSpace(p.Exe) ? $"PID {p.Pid}" : $"PID {p.Pid} · {p.Exe}",
                     Cpu = p.Cpu,
                     Mem = p.Mem,
                 });
@@ -715,6 +741,10 @@ public partial class AppRowViewModel : ObservableObject
 {
     [ObservableProperty] public partial string Name { get; set; } = "";
     [ObservableProperty] public partial string Sub { get; set; } = "";
+    [ObservableProperty] public partial bool HasTitle { get; set; }
+    [ObservableProperty] public partial string Exe { get; set; } = "";
+    [ObservableProperty] public partial bool HasExe { get; set; }
+    [ObservableProperty] public partial string Tip { get; set; } = "";
     [ObservableProperty] public partial Geometry Icon { get; set; } = Geometry.Parse("");
 
     [ObservableProperty]
