@@ -18,6 +18,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // desktopEntry 是 .desktop 文件里与本功能相关的几个键。
@@ -118,12 +119,11 @@ func splitExec(s string) []string {
 	return out
 }
 
-// flatpakAppID 从 Flatpak 的 Exec 里取应用 id：
+// flatpakAppID 取 Flatpak 的 Exec 里那个 --app-id= 的值。
 //
-//	/usr/bin/flatpak run --branch=stable --arch=x86_64 --app-id=org.gnome.Foo %U
-//
-// 这类条目的 Exec 指向 flatpak 本身，靠可执行名永远匹配不上，
-// 只能认它导出的文件名（就是 <app-id>.desktop）。
+// 真正的 Flatpak 反查不走这条：那类进程的可执行文件是 bwrap，在 Exec 里找 app-id
+// 对不上。反查走“读环境变量 + 认导出的 .desktop 文件名”（见 flatpakID 与 findEntryByBase）。
+// 这里只留着解析导出的 .desktop 内容时可能用得上。
 func flatpakAppID(exec string) string {
 	if !strings.Contains(exec, "--app-id=") {
 		return ""
@@ -139,7 +139,8 @@ func flatpakAppID(exec string) string {
 // matchDesktopEntry 按可执行文件路径反查桌面条目，返回 nil 表示没匹配上。
 //
 // 依据是 Exec= 里那个程序的 basename 与目标可执行文件相同；TryExec= 能对上算更硬的信号。
-// 脚本型应用（python3 /path/app.py）这里匹配不上，交给上层"拿可执行名直接当图标名猜"兜底。
+// 脚本型应用（python3 /path/app.py）这里匹配不上，交给上层“拿可执行名直接当图标名猜”兜底。
+// Flatpak 应用也不走这里——它们的可执行文件是 bwrap，得靠环境变量认，见 flatpakID。
 func matchDesktopEntry(entries []desktopEntry, exe string) *desktopEntry {
 	want := strings.ToLower(filepath.Base(exe))
 	var weak *desktopEntry
@@ -156,14 +157,34 @@ func matchDesktopEntry(entries []desktopEntry, exe string) *desktopEntry {
 				weak = e
 			}
 		}
-		// Flatpak：进程的可执行文件其实是 flatpak，得按应用 id 认
-		if id := flatpakAppID(e.Exec); id != "" && strings.EqualFold(filepath.Base(e.Path), id+".desktop") {
-			if strings.EqualFold(want, strings.ToLower(filepath.Base(id))) {
-				return e
-			}
-		}
 	}
 	return weak
+}
+
+// findEntryByBase 按文件名找一个条目。
+// Flatpak 导出的 .desktop 文件名就是它的应用 id，认名字比认 Exec 靠得住。
+func findEntryByBase(entries []desktopEntry, filename string) *desktopEntry {
+	for i := range entries {
+		if entries[i].Icon != "" && strings.EqualFold(filepath.Base(entries[i].Path), filename) {
+			return &entries[i]
+		}
+	}
+	return nil
+}
+
+// environValue 从 /proc/<pid>/environ 的内容里取某个变量的值。
+// 那份内容是以 NUL 分隔的 KEY=VALUE 串。
+//
+// 注：调用方用的键名（FLATPAK_ID）是按已知的 Flatpak 行为写的，没能找到官方文档核实。
+// --probe-icon 会把进程环境里的这一项打出来，真机跑一次就知道对不对。
+func environValue(data []byte, key string) string {
+	prefix := key + "="
+	for _, kv := range strings.Split(string(data), "\x00") {
+		if v, ok := strings.CutPrefix(kv, prefix); ok {
+			return v
+		}
+	}
+	return ""
 }
 
 // xdgDataHome 返回 $XDG_DATA_HOME，未设置时按规范退回 ~/.local/share。
@@ -456,6 +477,35 @@ func lookupByIndex(base string, dirs []iconDir, name string, size, scale int, tr
 		}
 	}
 	return bestPath, bestPath != ""
+}
+
+// ================= 图标缓存 =================
+//
+// 图标是死的，同一个可执行文件反复请求不必反复提取。按路径缓存；
+// 条目数天然有限（一台机器上的可执行文件就那么多），不做淘汰。
+// 提取失败不进缓存：那可能是暂时的（进程刚起、权限未就绪），下次还得再试。
+
+var (
+	iconCacheMu sync.Mutex
+	iconCache   = map[string]cachedIcon{}
+)
+
+type cachedIcon struct {
+	data []byte
+	mime string
+}
+
+func cacheGet(exe string) ([]byte, string, bool) {
+	iconCacheMu.Lock()
+	defer iconCacheMu.Unlock()
+	c, ok := iconCache[exe]
+	return c.data, c.mime, ok
+}
+
+func cachePut(exe string, data []byte, mime string) {
+	iconCacheMu.Lock()
+	defer iconCacheMu.Unlock()
+	iconCache[exe] = cachedIcon{data: data, mime: mime}
 }
 
 // splitList 拆开逗号分隔的列表，顺手去掉空项。

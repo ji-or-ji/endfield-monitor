@@ -68,6 +68,40 @@ func TestMatchDesktopEntry(t *testing.T) {
 	}
 }
 
+func TestEnvironValue(t *testing.T) {
+	data := []byte("PATH=/usr/bin\x00FLATPAK_ID=org.gnome.Foo\x00HOME=/home/u\x00")
+	if got := environValue(data, "FLATPAK_ID"); got != "org.gnome.Foo" {
+		t.Errorf("FLATPAK_ID 应取到 org.gnome.Foo，得到 %q", got)
+	}
+	if got := environValue(data, "HOME"); got != "/home/u" {
+		t.Errorf("HOME 应取到 /home/u，得到 %q", got)
+	}
+	// 键名必须整段相等：HOME 不该被 HOME_X 之类前缀命中
+	if got := environValue([]byte("HOME_X=1\x00"), "HOME"); got != "" {
+		t.Errorf("不该被前缀命中，得到 %q", got)
+	}
+	if got := environValue(data, "NOPE"); got != "" {
+		t.Errorf("不存在的键应返回空，得到 %q", got)
+	}
+}
+
+func TestFindEntryByBase(t *testing.T) {
+	entries := []desktopEntry{
+		{Path: "/var/lib/flatpak/exports/share/applications/org.gnome.Foo.desktop", Name: "Foo", Icon: "org.gnome.Foo"},
+		{Path: "/usr/share/applications/noicon.desktop", Name: "无图标"},
+	}
+	if e := findEntryByBase(entries, "org.gnome.Foo.desktop"); e == nil || e.Name != "Foo" {
+		t.Fatalf("应按文件名找到 Flatpak 条目，得到 %+v", e)
+	}
+	// 没有 Icon 的条目不该被选中
+	if e := findEntryByBase(entries, "noicon.desktop"); e != nil {
+		t.Fatalf("Icon 为空的条目不该被选中: %+v", e)
+	}
+	if e := findEntryByBase(entries, "missing.desktop"); e != nil {
+		t.Fatalf("不存在的文件名不该命中: %+v", e)
+	}
+}
+
 func mustWrite(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

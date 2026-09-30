@@ -406,14 +406,26 @@ func handleAppIcon(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	// exe 只是走近路：Linux 那边拿不到时会自己从 /proc 读
+	// exe 只是走近路：Linux 那边拿不到时会自己从 /proc 读。
+	// 图标不会变，按 exe 路径缓存；拿不到路径时就不缓存。
 	exe := exeOfPid(pid)
+	if data, mime, ok := cacheGet(exe); ok {
+		writeIcon(w, data, mime)
+		return
+	}
 	data, mime, err := appIcon(pid, exe)
 	if err != nil {
 		writeJSON(w, 404, map[string]any{"error": err.Error()})
 		return
 	}
-	// 图标不会变，让客户端放心缓存
+	if exe != "" {
+		cachePut(exe, data, mime)
+	}
+	writeIcon(w, data, mime)
+}
+
+// writeIcon 把图标发出去。图标不会变，让客户端放心缓存。
+func writeIcon(w http.ResponseWriter, data []byte, mime string) {
 	w.Header().Set("Content-Type", mime)
 	w.Header().Set("Cache-Control", "max-age=86400")
 	w.WriteHeader(200)
