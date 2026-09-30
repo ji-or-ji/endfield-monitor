@@ -58,6 +58,21 @@ enf-collector.exe    ──HTTP/JSON──▶  EnfieldMonitor.exe
 > 下文里，配置向导与配置文件是跨平台通用的；防火墙规则与开机自启两节是 **Windows 写法**，
 > 在 Linux 上得换成对应的做法。
 
+### Linux：一键安装
+
+Ubuntu / Debian 这类用 systemd 的系统，把 `install.sh` 和对应架构的采集端二进制放在同一个目录，
+一条命令就完事：装到 `/opt/enf-monitor/`、注册 systemd 服务、开机自启，顺带放行 ufw。
+
+```bash
+chmod +x install.sh
+sudo ./install.sh                     # 交互式问端口与口令
+sudo ./install.sh --port 8898 --token 你的口令 --lite
+sudo ./install.sh --plus              # 用增强版（可启停应用、取图标）
+sudo ./install.sh --uninstall         # 卸载
+```
+
+下面这几节是 Windows 的写法，照着做之前记得换成 Linux 的对应做法。
+
 ### 第一步：跑一次配置向导
 
 ```powershell
@@ -189,7 +204,49 @@ $p = New-ScheduledTaskPrincipal -UserId 'Administrator' -LogonType S4U -RunLevel
 Register-ScheduledTask -TaskName 'EnfieldMonitor' -Action $a -Trigger $t -Principal $p
 ```
 
+## 客户端
+
+三个平台，都是单文件、自带运行时，解压即用：
+
+| 平台 | 文件 |
+| --- | --- |
+| Windows x64 | `EndfieldMonitor-*-win-x64.exe` |
+| Linux x64 | `EndfieldMonitor-*-linux-x64` |
+| Linux arm64 | `EndfieldMonitor-*-linux-arm64` |
+
+Windows 上双击即可；Linux 上先给执行权限：
+
+```bash
+chmod +x EndfieldMonitor-*-linux-x64
+./EndfieldMonitor-*-linux-x64
+```
+
+**Linux 上需要桌面环境**（Avalonia 走 X11 或 Wayland，纯服务器跑不起来），
+并且建议确认装好了中文字体与常用的 X11 库，否则会看到方块或直接启动失败：
+
+```bash
+sudo apt install fonts-noto-cjk
+sudo apt install libx11-6 libxrandr2 libxi6 libxcursor1 libxext6 \
+                 libxcomposite1 libice6 libsm6 libgl1 libfontconfig1 libfreetype6
+```
+
+启动后在设置里填被监视机器的地址与口令即可；同机自看就填 `127.0.0.1:8898`。
+
 ## 构建
+
+一条命令编出全部九个产物（客户端三平台 + 采集端普通/增强各三平台）到 `dist/`：
+
+```powershell
+.\build.ps1                    # 版本取最近一个 git tag
+.\build.ps1 -Version v0.5.0    # 指定版本
+.\build.ps1 -Publish           # 构建并全量推到 Gitee 发行版
+```
+
+产物统一命名 `<名字>-v<版本>-<平台>-<架构>`：平台只有 `win|linux`，架构只有 `x64|arm64`，
+同时自动生成 `SHA256SUMS.txt`。发布需要令牌，从环境变量 `GITEE_TOKEN`（或 `~/.gitee-token`）
+读，不会写进仓库。
+
+想单独编某一样，看下面两节。
 
 ### 服务端（需要 Go 1.27+，以 go.mod 声明为准）
 

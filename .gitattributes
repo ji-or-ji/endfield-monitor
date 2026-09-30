@@ -1,0 +1,6 @@
+# shell 脚本必须保持 LF：仓库开了 autocrlf，checkout 成 CRLF 后
+# 在 Linux 上会直接因为 "\r" 报错跑不起来。
+*.sh text eol=lf
+
+# PowerShell 脚本留给 Windows，行尾随平台即可
+*.ps1 text
