@@ -165,6 +165,9 @@ go build -tags plus -ldflags "-s -w" -o enf-collector-plus.exe . # 增强版：�
 
 客户端探测到 `capabilities` 非空就知道对面是增强版。界面部分还没接。
 
+图标解析不出来时，用 `--probe-icon <pid>` 可以把查找链条上每一步原样打出来，
+不常驻也不改任何东西——Linux 上尤其有用（那套目录与匹配规则没在真机核过）。
+
 ### 放行防火墙
 
 ```powershell
