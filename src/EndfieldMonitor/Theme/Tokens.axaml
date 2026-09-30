@@ -50,7 +50,9 @@
     <SolidColorBrush x:Key="TextBrush"      Color="{StaticResource TextColor}" />
     <SolidColorBrush x:Key="TextDimBrush"   Color="{StaticResource TextDimColor}" />
 
-    <!-- 字体：与原版一致的中英文混排栈 -->
-    <FontFamily x:Key="UiFont">Microsoft YaHei, Segoe UI, PingFang SC</FontFamily>
+    <!-- 字体：与原版一致的中英文混排栈。
+         后面几个是 Linux 上常见的中文与西文字体，缺了就落到系统默认，
+         Avalonia 会再按字形逐级回退。 -->
+    <FontFamily x:Key="UiFont">Microsoft YaHei, Segoe UI, PingFang SC, Noto Sans CJK SC, Source Han Sans SC, WenQuanYi Micro Hei, Ubuntu, DejaVu Sans</FontFamily>
 
 </ResourceDictionary>
