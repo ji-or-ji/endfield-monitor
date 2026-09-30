@@ -144,7 +144,7 @@ func (c *pdhCounter) array() ([]pdhItem, bool) {
 // ================= 采样集 =================
 
 type perfSet struct {
-	cpuFreq  *pdhCounter
+	cpuPerf  *pdhCounter
 	gpuUtil  *pdhCounter
 	gpuMem   *pdhCounter
 	diskBusy map[string]*pdhCounter // 盘符 -> % Disk Time
@@ -166,7 +166,7 @@ func initPerf() {
 		}
 		return c
 	}
-	p.cpuFreq = open(`\Processor Information(_Total)\Processor Frequency`)
+	p.cpuPerf = open(`\Processor Information(_Total)\% Processor Performance`)
 	p.gpuUtil = open(`\GPU Engine(*)\Utilization Percentage`)
 	p.gpuMem = open(`\GPU Adapter Memory(*)\Dedicated Usage`)
 	for _, d := range static.Disks {
@@ -182,7 +182,7 @@ func (p *perfSet) tick() {
 	if p == nil {
 		return
 	}
-	p.cpuFreq.collect()
+	p.cpuPerf.collect()
 	p.gpuUtil.collect()
 	p.gpuMem.collect()
 	for _, c := range p.diskBusy {
@@ -208,12 +208,19 @@ func diskFallbackNeeded() bool {
 	return false
 }
 
-func perfCPUFreqGHz() (float64, bool) {
+// perfCPUPerfPct 返回 % Processor Performance：100% 即基准频率，超过 100% 就是在睿频。
+//
+// 为什么不直接用“Processor Frequency”那个计数器：它给的是各核当前频率的
+// 加权平均（实测 8 个 P 核线程顶在 2.1G、4 个 E 核线程 1.54G 时，平均正好 1913MHz），
+// 大小核混合的机器上永远看不出单核睿频。而“每核频率”另两个接口
+// （CallNtPowerInformation、WMI CurrentClockSpeed）实测只报静态的基准值。
+// 百分比这个信号是活的，乘上基准就能得到能超过基准的等效频率。
+func perfCPUPerfPct() (float64, bool) {
 	if perf == nil {
 		return 0, false
 	}
-	if mhz, ok := perf.cpuFreq.value(); ok && mhz > 0 {
-		return round2(mhz / 1000.0), true
+	if v, ok := perf.cpuPerf.value(); ok && v > 0 {
+		return v, true
 	}
 	return 0, false
 }

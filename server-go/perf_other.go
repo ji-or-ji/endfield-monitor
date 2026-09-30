@@ -10,7 +10,7 @@ func perfTick() {}
 
 func diskFallbackNeeded() bool { return true }
 
-func perfCPUFreqGHz() (float64, bool) { return 0, false }
+func perfCPUPerfPct() (float64, bool) { return 0, false }
 
 func perfDiskSample(_ string) (float64, float64, bool) { return 0, 0, false }
 
