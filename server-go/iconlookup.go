@@ -247,8 +247,10 @@ func iconMime(path string) string {
 	return "application/octet-stream"
 }
 
-// iconSizes 是猜主题目录结构时用的尺寸子目录名，从大到小。
-var iconSizes = []string{"256x256", "192x192", "128x128", "96x96", "64x64", "48x48", "32x32", "16x16", "scalable"}
+// iconSizes 是猜主题目录结构时用的尺寸子目录名，顺序即优先级。
+// 我们要的是 48 这一档（客户端按 38px 显示），所以 48x48 排最前，
+// 其余按与它接近的程度往后排。index.theme 走不通时才会用到这个猜测。
+var iconSizes = []string{"48x48", "64x64", "32x32", "96x96", "128x128", "192x192", "256x256", "16x16", "scalable"}
 
 // iconContexts 图标在主题里按用途分目录，应用图标在 apps 下；
 // 旧一些的主题会直接放在尺寸目录下，所以空的那项也试。

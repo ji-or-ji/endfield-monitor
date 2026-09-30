@@ -569,7 +569,6 @@ func readCPU() CPUInfo {
 		Freq:    freq,
 		Peak:    cpuPeakGHz,
 		Base:    static.CPUBase,
-		Max:     static.CPUMax,
 	}
 }
 

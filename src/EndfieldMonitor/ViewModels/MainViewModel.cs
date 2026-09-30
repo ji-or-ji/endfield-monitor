@@ -242,11 +242,11 @@ public partial class MainViewModel : ViewModelBase
             {
                 Apps.Add(new AppRowViewModel
                 {
-                    Name = string.IsNullOrWhiteSpace(p.Display) ? (p.Name ?? "?") : p.Display!,
+                    Name = string.IsNullOrWhiteSpace(p.Name) ? "?" : p.Name!,
                     // 副标题只留给窗口标题；没有就不占位，别把进程名重复一遍
                     Sub = p.Title ?? "",
                     HasTitle = !string.IsNullOrWhiteSpace(p.Title),
-                    Icon = IconLibrary.Get(IconLibrary.KeyFor((p.Name ?? "") + " " + (p.Display ?? ""))),
+                    Icon = IconLibrary.Get(IconLibrary.KeyFor(p.Name ?? "")),
                     // 可执行文件路径：同名进程靠它区分（好几个 chrome、几个 python 之类）
                     Exe = ShortenPath(p.Exe),
                     HasExe = !string.IsNullOrWhiteSpace(p.Exe),
