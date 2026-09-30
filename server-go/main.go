@@ -25,7 +25,8 @@ const (
 	netInterval  = 60 * time.Second // 主网卡链路速率刷新
 	procLimit    = 24               // 快照里带的进程条数，与客户端展示一致
 
-	// 超过这段时间没人拉快照，就认为没人在看，两条采样循环都放慢。
+	// 轻量模式（--lite）下：超过这段时间没人拉快照，就认为没人在看，两条循环都放慢。
+	// 主要模式用不到这几个值，始终按 fastInterval / procInterval 固定节拍采。
 	procIdleAfter    = 30 * time.Second
 	procIdleInterval = 30 * time.Second
 	fastIdleInterval = 5 * time.Second
@@ -39,6 +40,7 @@ type config struct {
 	watchProc []string
 	watchPort []int
 	watchTask []string
+	lite      bool
 }
 
 var (
@@ -54,7 +56,7 @@ var (
 	tasksAll  []TaskInfo
 	service   *ServiceInfo
 
-	// 有人拉快照就说明有人在看；没人在看时采样放慢。
+	// 有人拉快照就说明有人在看；轻量模式下据此放慢采样。
 	lastPull atomic.Int64 // Unix 秒
 	procKick = make(chan struct{}, 1)
 	fastKick = make(chan struct{}, 1)
@@ -83,6 +85,7 @@ func main() {
 	flag.StringVar(&taskCSV, "watch-tasks", "", "计划任务名，逗号分隔")
 	flag.StringVar(&configPath, "config", "", "配置文件路径，默认取 exe 同目录的 enf-collector.json")
 	flag.BoolVar(&setup, "setup", false, "交互式生成配置文件，写完即退出")
+	flag.BoolVar(&cfg.lite, "lite", false, "轻量模式：没人拉快照时自动放慢采样（默认关闭，始终按固定节拍）")
 	flag.Parse()
 
 	// 记住哪些开关是命令行显式给的，它们要压过配置文件
@@ -138,6 +141,11 @@ func main() {
 	if len(cfg.watchProc) > 0 || len(cfg.watchPort) > 0 || len(cfg.watchTask) > 0 {
 		fmt.Printf("[collector] 关注服务: %s | 进程 %v | 端口 %v | 任务 %v\n",
 			orDefault(cfg.watchName, "服务"), cfg.watchProc, cfg.watchPort, cfg.watchTask)
+	}
+	if cfg.lite {
+		fmt.Println("[collector] 采样模式: 轻量（没人拉快照时自动放慢）")
+	} else {
+		fmt.Println("[collector] 采样模式: 主要（始终按固定节拍）")
 	}
 
 	name, link := currentNetwork()
@@ -215,7 +223,9 @@ func procLoop() {
 		service = svc
 		collectMu.Unlock()
 
-		idle := watchIdle()
+		// 只有轻量模式才看“有没有人在看”；主要模式 idle 恒为 false，
+		// 于是日志不会打、间隔也不会变。
+		idle := cfg.lite && watchIdle()
 		if idle != wasIdle {
 			if idle {
 				fmt.Println("[collector] 没人拉快照，进程采样放慢到 30 秒")
@@ -242,9 +252,13 @@ func watchIdle() bool {
 	return t == 0 || time.Since(time.Unix(t, 0)) > procIdleAfter
 }
 
-// markPull 记录一次快照拉取。只在“从没人看变成有人看”的那一刻叫醒采样循环，
-// 平时连拉不打扰它们，免得把节奏压成每拉一次就采一次。
+// markPull 记录一次快照拉取。轻量模式下，只在“从没人看变成有人看”的那一刻
+// 叫醒采样循环，平时连拉不打扰它们，免得把节奏压成每拉一次就采一次。
 func markPull() {
+	if !cfg.lite {
+		// 主要模式始终按固定节拍采，没什么要唤醒的
+		return
+	}
 	now := time.Now()
 	prev := lastPull.Swap(now.Unix())
 	if prev == 0 || now.Sub(time.Unix(prev, 0)) > procIdleAfter {
@@ -284,9 +298,9 @@ func sampleLoop() {
 	prevAt := time.Now()
 
 	for {
-		// 没人看的时候不必每秒采一次，有客户端来拉再立刻恢复
+		// 轻量模式下没人看时不必每秒采一次，有客户端来拉再立刻恢复
 		d := fastInterval
-		if watchIdle() {
+		if cfg.lite && watchIdle() {
 			d = fastIdleInterval
 		}
 		select {

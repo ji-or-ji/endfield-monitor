@@ -199,11 +199,14 @@ func collectProcs() []ProcInfo {
 			cpuPct = 0
 		}
 
-		// 可执行文件路径不在这里取：读一次 PEB 要开句柄，全表下来实测 7ms，
-		// 而客户端并不消费这个字段。将来真要用（按路径区分同名进程之类）再加。
+		// 可执行文件路径：客户端目前没消费，但快照里保留着，供按路径区分同名
+		// 进程、白名单过滤之类用途。全表读一次 PEB 约 7ms，算主要模式的固定开销；
+		// 轻量模式下采样本身就稀疏，这点开销随之摊薄。
+		exe, _ := p.Exe()
 		out = append(out, ProcInfo{
 			Pid:   p.Pid,
 			Name:  name,
+			Exe:   exe,
 			Mem:   round1(rss),
 			CPU:   round1(cpuPct / ncpu),
 			Title: titles[p.Pid],

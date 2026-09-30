@@ -42,6 +42,11 @@ func runSetup(path string) error {
 		}
 	}
 
+	if askBool(in, "要不要开轻量模式（没人拉快照时自动放慢采样）", false) {
+		lite := true
+		fc.Lite = &lite
+	}
+
 	data, err := json.MarshalIndent(fc, "", "  ")
 	if err != nil {
 		return err
