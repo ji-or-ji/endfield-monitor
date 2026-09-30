@@ -58,6 +58,12 @@ if (-not $Version) {
 if ($Version -notmatch '^v') { $Version = "v$Version" }
 
 Write-Host "构建 $Version -> $dist" -ForegroundColor Cyan
+
+# 构建前先停掉自己正在跑的产物：Windows 上覆盖运行中的 exe 会失败，
+# 而忘掉这一步的代价是"构建静默不生效"。这个坑踩过三次，索性交给脚本。
+Get-Process -Name 'EndfieldMonitor*', 'enf-collector*' -ErrorAction SilentlyContinue | Stop-Process -Force
+Start-Sleep 1
+
 Remove-Item $dist -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Path $dist | Out-Null
 
