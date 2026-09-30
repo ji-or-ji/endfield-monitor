@@ -77,6 +77,7 @@ func splitCSV(s string) []string {
 func main() {
 	var procCSV, portCSV, taskCSV, configPath string
 	var setup bool
+	var probeIconPid int
 	flag.StringVar(&cfg.host, "host", "0.0.0.0", "监听地址")
 	flag.IntVar(&cfg.port, "port", 8898, "监听端口")
 	flag.StringVar(&cfg.token, "token", "", "共享口令，留空则不校验（仅本地调试用）")
@@ -85,7 +86,7 @@ func main() {
 	flag.StringVar(&portCSV, "watch-ports", "", "要盯的端口，逗号分隔，如 6099,7998")
 	flag.StringVar(&taskCSV, "watch-tasks", "", "计划任务名，逗号分隔")
 	flag.StringVar(&configPath, "config", "", "配置文件路径，默认取 exe 同目录的 enf-collector.json")
-	flag.BoolVar(&setup, "setup", false, "交互式生成配置文件，写完即退出")
+	flag.IntVar(&probeIconPid, "probe-icon", 0, "诊断用：打印该 pid 的图标查找全过程后退出")
 	flag.BoolVar(&cfg.lite, "lite", false, "轻量模式：没人拉快照时自动放慢采样（默认关闭，始终按固定节拍）")
 	flag.Parse()
 
@@ -104,6 +105,12 @@ func main() {
 			fmt.Printf("[collector] 生成配置失败: %v\n", err)
 			os.Exit(1)
 		}
+		return
+	}
+
+	// 诊断模式：只把图标查找过程打出来，不常驻
+	if probeIconPid > 0 {
+		probeIcon(int32(probeIconPid))
 		return
 	}
 
@@ -398,18 +405,15 @@ func handleAppIcon(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// exe 只是走近路：Linux 那边拿不到时会自己从 /proc 读
 	exe := exeOfPid(pid)
-	if exe == "" {
-		writeJSON(w, 404, map[string]any{"error": "这个 pid 不在最近的快照里"})
-		return
-	}
-	data, err := appIconPNG(exe)
+	data, mime, err := appIcon(pid, exe)
 	if err != nil {
 		writeJSON(w, 404, map[string]any{"error": err.Error()})
 		return
 	}
 	// 图标不会变，让客户端放心缓存
-	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Content-Type", mime)
 	w.Header().Set("Cache-Control", "max-age=86400")
 	w.WriteHeader(200)
 	_, _ = w.Write(data)
