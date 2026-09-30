@@ -25,7 +25,19 @@ func appIcon(pid int32, exe string) (data []byte, mime string, err error) {
 	}
 	exe = strings.TrimSuffix(exe, " (deleted)")
 
-	if e := matchDesktopEntry(loadDesktopEntries(desktopDirs()), exe); e != nil {
+	entries := loadDesktopEntries(desktopDirs())
+
+	// Flatpak 应用先认：它们的可执行文件是 bwrap，按名字永远匹配不上，
+	// 但环境里留着应用 id，导出的 .desktop 文件名就是它。
+	if id := flatpakID(pid); id != "" {
+		if e := findEntryByBase(entries, id+".desktop"); e != nil {
+			if data, mime, ok := readIcon(e.Icon); ok {
+				return data, mime, nil
+			}
+		}
+	}
+
+	if e := matchDesktopEntry(entries, exe); e != nil {
 		if data, mime, ok := readIcon(e.Icon); ok {
 			return data, mime, nil
 		}
@@ -73,6 +85,16 @@ func procExe(pid int32) string {
 	return p
 }
 
+// flatpakID 从进程的环境里取 Flatpak 应用 id。
+// 这类进程的可执行文件是 bwrap，只有环境变量还记得它到底是谁。
+func flatpakID(pid int32) string {
+	data, err := os.ReadFile(filepath.Join("/proc", strconv.Itoa(int(pid)), "environ"))
+	if err != nil {
+		return ""
+	}
+	return environValue(data, "FLATPAK_ID")
+}
+
 // loadDesktopEntries 扫一批目录里的 .desktop 条目。
 // 同名文件以先出现的目录为准（用户目录排在系统目录前面）。
 func loadDesktopEntries(dirs []string) []desktopEntry {
@@ -116,6 +138,13 @@ func probeIcon(pid int32) {
 	}
 	exe = strings.TrimSuffix(exe, " (deleted)")
 	fmt.Printf("[probe] 归一后 exe = %q\n", exe)
+
+	// Flatpak 那条路靠这个变量，名字对不对一看便知
+	if id := flatpakID(pid); id != "" {
+		fmt.Printf("[probe] FLATPAK_ID = %q\n", id)
+	} else {
+		fmt.Println("[probe] 环境里没有 FLATPAK_ID（不是 Flatpak 应用，或者变量名不对）")
+	}
 
 	dirs := desktopDirs()
 	fmt.Println("[probe] .desktop 目录：")
