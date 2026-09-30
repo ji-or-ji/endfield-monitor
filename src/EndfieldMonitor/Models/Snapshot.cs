@@ -38,7 +38,6 @@ public sealed class CpuInfo
     [JsonPropertyName("freq")]    public double Freq { get; set; }
     [JsonPropertyName("peak")]    public double Peak { get; set; }
     [JsonPropertyName("base")]    public double Base { get; set; }
-    [JsonPropertyName("max")]     public double Max { get; set; }
 }
 
 public sealed class GpuInfo
@@ -101,7 +100,6 @@ public sealed class ProcInfo
     [JsonPropertyName("exe")]     public string? Exe { get; set; }
     [JsonPropertyName("mem")]     public double Mem { get; set; }
     [JsonPropertyName("cpu")]     public double Cpu { get; set; }
-    [JsonPropertyName("display")] public string? Display { get; set; }
     [JsonPropertyName("title")]   public string? Title { get; set; }
 }
 

@@ -21,9 +21,10 @@ func collectStatic() staticInfo {
 
 	if infos, err := cpu.Info(); err == nil && len(infos) > 0 {
 		s.CPUName = strings.TrimSpace(infos[0].ModelName)
+		// gopsutil 报的 Mhz 就是基准频率（Windows 上实测如此），
+		// 睿频上限没有可靠接口，快照里只给基准与实测峰值。
 		if infos[0].Mhz > 0 {
-			s.CPUMax = round2(infos[0].Mhz / 1000.0)
-			s.CPUBase = s.CPUMax
+			s.CPUBase = round2(infos[0].Mhz / 1000.0)
 		}
 	}
 	if s.CPUName == "" {

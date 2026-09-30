@@ -27,7 +27,6 @@ type CPUInfo struct {
 	Freq    float64 `json:"freq"`
 	Peak    float64 `json:"peak"` // 观测到的最高实时频率；一直没超过标称就为零
 	Base    float64 `json:"base"`
-	Max     float64 `json:"max"`
 }
 
 type GPUInfo struct {
@@ -81,13 +80,12 @@ type BatteryInfo struct {
 }
 
 type ProcInfo struct {
-	Pid     int32   `json:"pid"`
-	Name    string  `json:"name"`
-	Exe     string  `json:"exe"`
-	Mem     float64 `json:"mem"`
-	CPU     float64 `json:"cpu"`
-	Display string  `json:"display"`
-	Title   string  `json:"title"`
+	Pid   int32   `json:"pid"`
+	Name  string  `json:"name"`
+	Exe   string  `json:"exe"`
+	Mem   float64 `json:"mem"`
+	CPU   float64 `json:"cpu"`
+	Title string  `json:"title"`
 }
 
 type ServerInfo struct {
@@ -117,7 +115,6 @@ type staticInfo struct {
 	Host        string
 	CPUName     string
 	Threads     int
-	CPUMax      float64
 	CPUBase     float64
 	MemTotal    string
 	MemSpeed    string
