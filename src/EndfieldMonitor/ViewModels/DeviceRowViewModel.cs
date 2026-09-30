@@ -46,6 +46,19 @@ public partial class DeviceRowViewModel : ObservableObject
         History = (double[])_buf.Clone();
     }
 
+    /// <summary>详情面板展示的是同一批实例，改它们的值就能实时刷新。</summary>
+    public void SetDetail(string label, string value)
+    {
+        foreach (var r in Detail)
+        {
+            if (r.Label == label)
+            {
+                r.Value = value;
+                return;
+            }
+        }
+    }
+
     /// <summary>重建行时把上一份走势接过来，避免图表归零。</summary>
     public void AdoptHistory(IReadOnlyList<double>? old)
     {
@@ -57,8 +70,8 @@ public partial class DeviceRowViewModel : ObservableObject
     }
 }
 
-public sealed class DetailRowViewModel
+public partial class DetailRowViewModel : ObservableObject
 {
-    public string Label { get; init; } = "";
-    public string Value { get; init; } = "";
+    [ObservableProperty] public partial string Label { get; set; } = "";
+    [ObservableProperty] public partial string Value { get; set; } = "";
 }

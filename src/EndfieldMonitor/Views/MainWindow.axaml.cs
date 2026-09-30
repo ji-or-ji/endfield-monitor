@@ -100,6 +100,23 @@ public partial class MainWindow : Window
         {
             if (Environment.GetEnvironmentVariable("ENF_PAGE") == "perf") vm.GoPerf();
             if (Environment.GetEnvironmentVariable("ENF_SETTINGS") == "1") vm.OpenSettings();
+
+            // 开发用：ENF_DETAIL=<设备 Key> 打开某个设备的详情面板（等首帧数据到了再开）
+            string? detailKey = Environment.GetEnvironmentVariable("ENF_DETAIL");
+            if (!string.IsNullOrWhiteSpace(detailKey))
+            {
+                DispatcherTimer.RunOnce(() =>
+                {
+                    foreach (var dev in vm.Devices)
+                    {
+                        if (dev.Key == detailKey)
+                        {
+                            vm.OpenDetail(dev);
+                            break;
+                        }
+                    }
+                }, TimeSpan.FromMilliseconds(2600));
+            }
         }
 
         // 开发用离屏截图：设了 ENF_SHOT 环境变量就渲染一张 PNG 后退出（方便无人工介入时验证渲染）
