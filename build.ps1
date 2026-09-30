@@ -97,6 +97,46 @@ try {
     Remove-Item Env:GOOS, Env:GOARCH, Env:CGO_ENABLED -ErrorAction SilentlyContinue
 }
 
+# ---------- 自包含套件 ----------
+# 每个平台一个 zip：客户端 + 该平台的增强版采集端 + 一份怎么用。
+# 解压后两样在同一个文件夹里，客户端地址留空即连本机，拿到就能用。
+foreach ($t in $targets) {
+    $stage = Join-Path $env:TEMP "enf-bundle-$($t.Os)-$($t.Arch)"
+    Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Path $stage | Out-Null
+
+    $clientName = "EndfieldMonitor-$Version-$($t.Os)-$($t.Arch)$($t.Ext)"
+    $collectorName = "enf-collector-plus-$Version-$($t.Os)-$($t.Arch)$($t.Ext)"
+    Copy-Item (Join-Path $dist $clientName) $stage
+    Copy-Item (Join-Path $dist $collectorName) $stage
+
+    # zip 不保留 Unix 执行权限，所以 Linux 那份要把 chmod 写进说明
+    $howto = @"
+EndfieldMonitor 本机套件（$($t.Os)-$($t.Arch)）
+
+一、在这个文件夹里启动采集端
+    Windows:  .\$collectorName --port 8898
+    Linux:    chmod +x $collectorName
+              ./$collectorName --port 8898
+
+二、打开客户端
+    Windows:  双击 $clientName
+    Linux:    chmod +x $clientName
+              ./$clientName
+
+客户端地址留空就行，它默认连本机 127.0.0.1:8898。
+
+想用增强版的启停应用与取图标：启动采集端时加上 --token 你的口令，
+并在客户端设置里填同一个口令。不配口令也能看数据，只是不能用动手指令。
+"@
+    Set-Content (Join-Path $stage '怎么用.txt') -Value $howto -Encoding utf8NoBOM
+
+    $zip = Join-Path $dist "EndfieldMonitor-$Version-$($t.Os)-$($t.Arch)-bundle.zip"
+    Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -Force
+    Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Host "  套件 $($t.Os)-$($t.Arch) 已打包" -ForegroundColor DarkGray
+}
+
 # ---------- 清单与校验和（自动标注） ----------
 $files = Get-ChildItem $dist -File | Sort-Object Name
 $sums = foreach ($f in $files) {
