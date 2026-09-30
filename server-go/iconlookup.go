@@ -16,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -256,36 +257,223 @@ var iconContexts = []string{"apps", ""}
 // findIconFile 在一批图标根目录里按名字找图标文件。
 // 返回命中的路径、它的 Content-Type，以及一路试过的路径（诊断用）。
 //
-// 这里没有解析每个主题的 index.theme，而是直接按最常见的
-// <主题>/<尺寸>/<用途>/<名字>.<后缀> 布局遍历。实现简单得多，代价是多几次 stat。
+// 优先按主题自己的 index.theme 找（规范做法），没有或没命中再退回遍历常见布局。
+// 后者是近似手段，会漏掉 48x48@2/apps 这类非常规目录名。
 func findIconFile(dirs []string, name string) (path, mime string, tried []string, ok bool) {
 	if name == "" {
 		return "", "", nil, false
 	}
-	for _, dir := range dirs {
-		for _, theme := range iconThemes(dir) {
+	// 客户端按 38px 显示，45 这一档最合适（规范要求应用至少装 48x48）
+	const wantSize, wantScale = 48, 1
+	for _, root := range dirs {
+		for _, theme := range iconThemes(root) {
+			base := filepath.Join(root, theme)
+			if sub, hasIndex := themeSubdirs(base); hasIndex {
+				if p, found := lookupByIndex(base, sub, name, wantSize, wantScale, &tried); found {
+					return p, iconMime(p), tried, true
+				}
+			}
 			for _, size := range iconSizes {
 				for _, ctx := range iconContexts {
-					for _, ext := range iconExts {
-						p := filepath.Join(dir, theme, size, ctx, name+ext)
-						tried = append(tried, p)
-						if fileExists(p) {
-							return p, iconMime(p), tried, true
-						}
+					if p, found := probeIconIn(filepath.Join(base, size, ctx), name, &tried); found {
+						return p, iconMime(p), tried, true
 					}
 				}
 			}
 		}
 		// 扁平存放的 pixmaps
-		for _, ext := range iconExts {
-			p := filepath.Join(dir, name+ext)
-			tried = append(tried, p)
-			if fileExists(p) {
-				return p, iconMime(p), tried, true
-			}
+		if p, found := probeIconIn(root, name, &tried); found {
+			return p, iconMime(p), tried, true
 		}
 	}
 	return "", "", tried, false
+}
+
+// probeIconIn 在一个目录里按后缀优先级找一个图标，试过的路径记在 tried 里。
+func probeIconIn(dir, name string, tried *[]string) (string, bool) {
+	for _, ext := range iconExts {
+		p := filepath.Join(dir, name+ext)
+		*tried = append(*tried, p)
+		if fileExists(p) {
+			return p, true
+		}
+	}
+	return "", false
+}
+
+// ================= index.theme =================
+//
+// 规范要求主题目录里有一份 index.theme，用 Directories= 列出该主题实际使用的子目录，
+// 每个子目录再用一个同名节描述它的尺寸属性。按这份描述查比遍历布局更准，
+// 也才照顾得到 48x48@2/apps 这类非常规名字。下面这段是照规范实现的。
+
+// iconDir 是 index.theme 里的一个尺寸目录。
+type iconDir struct {
+	Path      string // 相对主题根，如 48x48/apps
+	Size      int    // 名义尺寸
+	Scale     int    // 目标缩放，缺省 1
+	Type      string // Fixed / Scalable / Threshold，缺省 Threshold
+	MinSize   int
+	MaxSize   int
+	Threshold int
+}
+
+// matchingSizes 按规范判断这个目录算不算“尺寸正好合适”。
+func (d iconDir) matchingSizes(size, scale int) bool {
+	if d.Scale != scale {
+		return false
+	}
+	switch strings.ToLower(d.Type) {
+	case "fixed":
+		return d.Size == size
+	case "scalable":
+		return d.MinSize <= size && size <= d.MaxSize
+	default: // threshold
+		return d.Size-d.Threshold <= size && size <= d.Size+d.Threshold
+	}
+}
+
+// sizeDistance 是这个目录离想要的尺寸有多远，越小越优先；规则照规范。
+func (d iconDir) sizeDistance(size, scale int) int {
+	switch strings.ToLower(d.Type) {
+	case "fixed":
+		return absInt(d.Size*d.Scale - size*scale)
+	case "scalable":
+		return outside(d.MinSize, d.MaxSize, d.Scale, size, scale)
+	default: // threshold
+		return outside(d.Size-d.Threshold, d.Size+d.Threshold, d.Scale, size, scale)
+	}
+}
+
+// outside 算某个尺寸落在 [lo,hi]（已乘 Scale）之外差多少，落在里面就是 0。
+func outside(lo, hi, scale, size, sizeScale int) int {
+	target := size * sizeScale
+	if target < lo*scale {
+		return lo*scale - target
+	}
+	if target > hi*scale {
+		return target - hi*scale
+	}
+	return 0
+}
+
+func absInt(v int) int {
+	if v < 0 {
+		return -v
+	}
+	return v
+}
+
+// themeSubdirs 读主题里的 index.theme 并解析出尺寸目录。
+func themeSubdirs(base string) ([]iconDir, bool) {
+	data, err := os.ReadFile(filepath.Join(base, "index.theme"))
+	if err != nil {
+		return nil, false
+	}
+	return parseIndexTheme(string(data))
+}
+
+// parseIndexTheme 解析 index.theme，返回它列出的尺寸目录。
+// 没有 [Icon Theme] 段、或 Directories 里没有一个能用的节，就返回 ok=false。
+func parseIndexTheme(data string) (dirs []iconDir, ok bool) {
+	sections := map[string]map[string]string{}
+	section := ""
+	for _, raw := range strings.Split(data, "\n") {
+		line := strings.TrimSpace(strings.TrimRight(raw, "\r"))
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		if strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]") {
+			section = strings.TrimSpace(line[1 : len(line)-1])
+			if _, exists := sections[section]; !exists {
+				sections[section] = map[string]string{}
+			}
+			continue
+		}
+		if section == "" {
+			continue
+		}
+		if k, v, found := strings.Cut(line, "="); found {
+			sections[section][strings.TrimSpace(k)] = strings.TrimSpace(v)
+		}
+	}
+
+	main, exists := sections["Icon Theme"]
+	if !exists {
+		return nil, false
+	}
+	for _, sub := range splitList(main["Directories"]) {
+		kv, exists := sections[sub]
+		if !exists {
+			continue
+		}
+		d := iconDir{Path: sub, Scale: 1, Type: "Threshold", Threshold: 2}
+		d.Size = atoiDefault(kv["Size"], 0)
+		if d.Size <= 0 {
+			continue // Size 是必需键，没有就跳过这个目录
+		}
+		if v := atoiDefault(kv["Scale"], 1); v > 0 {
+			d.Scale = v
+		}
+		if t := kv["Type"]; t != "" {
+			d.Type = t
+		}
+		d.MinSize = atoiDefault(kv["MinSize"], d.Size)
+		d.MaxSize = atoiDefault(kv["MaxSize"], d.Size)
+		d.Threshold = atoiDefault(kv["Threshold"], 2)
+		dirs = append(dirs, d)
+	}
+	return dirs, len(dirs) > 0
+}
+
+// lookupByIndex 按 index.theme 的描述在主题里找一个图标。
+// 两遍：先找尺寸正好合适的目录，再在所有目录里挑尺寸最接近的那个（规范的做法）。
+func lookupByIndex(base string, dirs []iconDir, name string, size, scale int, tried *[]string) (string, bool) {
+	for _, d := range dirs {
+		if !d.matchingSizes(size, scale) {
+			continue
+		}
+		if p, found := probeIconIn(filepath.Join(base, d.Path), name, tried); found {
+			return p, true
+		}
+	}
+
+	bestPath := ""
+	bestDist := 0
+	for _, d := range dirs {
+		for _, ext := range iconExts {
+			p := filepath.Join(base, d.Path, name+ext)
+			*tried = append(*tried, p)
+			if !fileExists(p) {
+				continue
+			}
+			if dist := d.sizeDistance(size, scale); bestPath == "" || dist < bestDist {
+				bestPath, bestDist = p, dist
+			}
+			break
+		}
+	}
+	return bestPath, bestPath != ""
+}
+
+// splitList 拆开逗号分隔的列表，顺手去掉空项。
+func splitList(s string) []string {
+	var out []string
+	for _, p := range strings.Split(s, ",") {
+		if v := strings.TrimSpace(p); v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+// atoiDefault 解析整数，失败或空就用默认值。
+func atoiDefault(s string, def int) int {
+	v, err := strconv.Atoi(strings.TrimSpace(s))
+	if err != nil {
+		return def
+	}
+	return v
 }
 
 // iconThemes 列出某个图标根目录下的主题，hicolor 排在最前面。
