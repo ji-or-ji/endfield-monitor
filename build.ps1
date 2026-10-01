@@ -172,15 +172,28 @@ if (-not $Publish) {
 # 两个平台各要一个令牌：Gitee 是主仓库（只留最近两版），GitHub 是镜像（历史都留着）。
 function Get-Token([string]$envName, [string]$fileName, [string]$who) {
     $t = [Environment]::GetEnvironmentVariable($envName)
-    if (-not $t) {
-        $p = Join-Path $HOME $fileName
-        if (Test-Path $p) { $t = (Get-Content $p -Raw).Trim() }
+    if ($t) { return $t.Trim() }
+    $p = Join-Path $HOME $fileName
+    if (-not (Test-Path $p)) { return '' }
+    $raw = (Get-Content $p -Raw).Trim()
+    # 有的机器上令牌文件是 key=value 写法（token=xxx），不是裸令牌
+    foreach ($ln in ($raw -split "`r?`n")) {
+        if ($ln -match '^\s*token\s*=\s*(.+)$') { return $Matches[1].Trim() }
     }
-    if (-not $t) { throw "没找到 $who 令牌：设环境变量 $envName，或放到 ~/$fileName" }
-    return $t
+    return $raw
 }
 $giteeToken = Get-Token 'GITEE_TOKEN' '.gitee-token' 'Gitee'
+if (-not $giteeToken) {
+    $alt = Join-Path $HOME '.gitee-ji-or-ji.token'
+    if (Test-Path $alt) { $giteeToken = (Get-Content $alt -Raw).Trim() }
+}
+if (-not $giteeToken) { throw '没找到 Gitee 令牌：设环境变量 GITEE_TOKEN，或放到 ~/.gitee-token' }
+
+# GitHub 是可选镜像：没令牌就只发 Gitee，不因为缺它中断发布
 $githubToken = Get-Token 'GITHUB_TOKEN' '.github-token' 'GitHub'
+if (-not $githubToken) {
+    Write-Host '  没有 GitHub 令牌，本次只发 Gitee（代码镜像跳过）' -ForegroundColor Yellow
+}
 
 $giteeRepo = 'ji-or-ji/endfield-monitor'
 $githubRepo = 'ji-or-ji/endfield-monitor'
@@ -249,8 +262,9 @@ Write-Host '推送代码与标签 ...' -ForegroundColor Cyan
 $env:GIT_TERMINAL_PROMPT = '0'
 foreach ($t in @(
         @{ Label = 'Gitee'; Ref = 'origin' },
-        @{ Label = 'GitHub'; Ref = $githubPushUrl }
+        @{ Label = 'GitHub'; Ref = $(if ($githubToken) { $githubPushUrl } else { '' }) }
     )) {
+    if ($t.Ref -eq '') { continue }   # 没有令牌的远端直接跳过
     foreach ($ref in @('main', $Version)) {
         git -C $repo push $t.Ref $ref 2>&1 | Select-Object -Last 1
         if ($LASTEXITCODE -ne 0) { throw "推 $($t.Label) 的 $ref 失败，先把推送问题处理掉" }
@@ -356,7 +370,7 @@ foreach ($f in (Get-ChildItem $dist -File | Sort-Object Name)) {
 # 产物的历史归档暂时不做：项目还在快速变动，发行版只留最近两版，
 # 需要旧版的走 issue。真要把产物也传到 GitHub 时加 -GitHubAssets——
 # 但本地网络到 GitHub 很慢（实测单次 API 调用约 3 秒），大文件上传不现实。
-if ($GitHubAssets) {
+if ($GitHubAssets -and $githubToken) {
     Write-Host 'GitHub：创建发行版 ...' -ForegroundColor Cyan
 $ghrel = $null
 try {
