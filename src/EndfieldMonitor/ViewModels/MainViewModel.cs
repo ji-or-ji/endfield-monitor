@@ -60,6 +60,9 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] public partial string TagComp { get; set; } = "综合 --";
     [ObservableProperty] public partial string SourceText { get; set; } = "连接中…";
     [ObservableProperty] public partial string TargetText { get; set; } = "当前监控目标";
+
+    /// <summary>被控设备名（设备页左半边那行大字）。</summary>
+    [ObservableProperty] public partial string DeviceNameText { get; set; } = "-";
     [ObservableProperty] public partial bool IsLive { get; set; }
 
     [ObservableProperty] public partial bool IsOverviewPage { get; set; } = true;
@@ -250,6 +253,7 @@ public partial class MainViewModel : ViewModelBase
                     : " · " + name + " 离线";
             }
             TargetText = target;
+            DeviceNameText = s.Server.Host ?? "服务器";
         }
 
         var sec = (int)(DateTime.Now - _lastRefresh).TotalSeconds;
@@ -588,6 +592,7 @@ public partial class MainViewModel : ViewModelBase
         UptimeCaption = "已运行";
         LastRefreshText = "-";
         TargetText = "-";
+        DeviceNameText = "-";
 
         Array.Clear(_cpuHist, 0, _cpuHist.Length);
         Array.Clear(_memHist, 0, _memHist.Length);
