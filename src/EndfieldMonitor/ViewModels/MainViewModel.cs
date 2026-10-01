@@ -919,7 +919,8 @@ public partial class MainViewModel : ViewModelBase
         var current = AppConfig.NormalizeServer(_config.Server);
 
         var sig = current + "||" + DeviceNameText + "||";
-        foreach (var d in _config.Devices) sig += d.Endpoint + "|";
+        // 指纹要盖住卡片上会显示的每个字段：只算地址的话，改名字会被当成"清单没变"而跳过重建
+        foreach (var d in _config.Devices) sig += d.Endpoint + "|" + d.Name + "|" + d.Desc + "|" + d.Token + "||";
 
         if (sig == _deviceSignature && DeviceCards.Count > 0)
         {
