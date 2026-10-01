@@ -320,8 +320,16 @@
                     </Grid>
 
                     <!-- 页三：跨设备监控总览（底栏「切换被控」进来；淡灰图标按钮通往设备配置页） -->
-                    <Grid Grid.Row="0" IsVisible="{Binding IsDevicePage}">
-                        <Border Width="640" Padding="26"
+                    <Grid Grid.Row="0" IsVisible="{Binding IsDevicePage}" ColumnDefinitions="*,Auto" ColumnSpacing="30">
+                        <!-- 左：被控设备名。线路图后面再画，先摆文本 -->
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center" Spacing="12" Margin="40,0,0,0">
+                            <TextBlock Text="被控设备" FontSize="13" LetterSpacing="4"
+                                       Foreground="{StaticResource TextDimBrush}" />
+                            <TextBlock Text="{Binding DeviceNameText}" FontSize="38" LetterSpacing="1"
+                                       Foreground="{StaticResource TextBrush}" />
+                        </StackPanel>
+
+                        <Border Grid.Column="1" Width="640" Padding="26"
                                 HorizontalAlignment="Right" VerticalAlignment="Top"
                                 Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource LineBrush}"
                                 BorderThickness="1" BoxShadow="0 2 8 0 #10000000">
