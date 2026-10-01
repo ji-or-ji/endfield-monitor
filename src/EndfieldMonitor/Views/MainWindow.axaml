@@ -32,29 +32,45 @@
                 <Border Grid.Column="1" Margin="0,8,40,8" VerticalAlignment="Center"
                         Background="White" BorderBrush="{StaticResource LineBrush}"
                         BorderThickness="1" CornerRadius="4" BoxShadow="0 2 8 0 #10000000">
-                    <Grid ColumnDefinitions="4,*,Auto">
-                        <!-- 外框左沿的黄条 -->
-                        <Border Grid.Column="0" Background="{StaticResource YellowBrush}" />
-                        <!-- 内侧黑色长条 -->
-                        <Border Grid.Column="1" Margin="12,10" Background="{StaticResource DarkBrush}"
-                                CornerRadius="3" Padding="18,14">
-                            <StackPanel Spacing="7" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding Name}" FontSize="15" Foreground="#F2F2EF" />
-                                <TextBlock Text="{Binding Tag}" FontSize="11"
-                                           Foreground="{StaticResource YellowBrush}"
-                                           IsVisible="{Binding IsCurrent}" />
-                                <TextBlock Text="{Binding Tag}" FontSize="11" Foreground="#B4B4AF"
-                                           IsVisible="{Binding !IsCurrent}" />
-                            </StackPanel>
+                    <Grid ColumnDefinitions="16,*,Auto">
+                        <!-- 左沿的黄条：不顶满，上下各留一截 -->
+                        <Border Grid.Column="0" Width="5" Margin="10,12,0,12" CornerRadius="2"
+                                Background="{StaticResource YellowBrush}" />
+                        <!-- 内侧黑色长条：左边空出一块（参考图那块留给水印） -->
+                        <Border Grid.Column="1" Margin="28,10,12,10" Background="{StaticResource DarkBrush}"
+                                CornerRadius="3" Padding="16,12">
+                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                <!-- 小图标 + 设备名 -->
+                                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10"
+                                            VerticalAlignment="Center">
+                                    <Path Data="M4 9h3 M17 9h3 M6 6h12v9H6z M9 15v3h6v-3"
+                                          Stroke="#9A9A95" StrokeThickness="1.6" Width="22" Height="22"
+                                          Stretch="Uniform" />
+                                    <TextBlock Text="{Binding Name}" FontSize="15"
+                                               Foreground="#F2F2EF" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <!-- 连线：实心小方 → 长线（吃满剩余宽度） → 空心圈 -->
+                                <Grid Grid.Column="1" ColumnDefinitions="Auto,*,Auto"
+                                      VerticalAlignment="Center" Margin="20,0">
+                                    <Rectangle Grid.Column="0" Width="12" Height="12" Fill="#E8E8E4"
+                                               VerticalAlignment="Center" />
+                                    <Rectangle Grid.Column="1" Height="2" Fill="#4A4A46"
+                                               HorizontalAlignment="Stretch" VerticalAlignment="Center" />
+                                    <Ellipse Grid.Column="2" Width="14" Height="14" Stroke="#8A8A85"
+                                             StrokeThickness="2" VerticalAlignment="Center" />
+                                </Grid>
+                                <TextBlock Grid.Column="2" Text="{Binding Tag}" FontSize="15"
+                                           Foreground="#B4B4AF" VerticalAlignment="Center" />
+                            </Grid>
                         </Border>
-                        <!-- 编辑：浅色药丸 -->
-                        <Button Grid.Column="2" Margin="4,0,10,0" VerticalAlignment="Center"
-                                Background="#ECECEA" BorderBrush="{StaticResource LineBrush}"
-                                BorderThickness="1" CornerRadius="17" Padding="14,7">
-                            <StackPanel Orientation="Horizontal" Spacing="7">
-                                <Ellipse Width="7" Height="7" Fill="#8A8A85" VerticalAlignment="Center" />
+                        <!-- 编辑：白底描边的胶囊，前面一道横杠 -->
+                        <Button Grid.Column="2" Margin="4,0,12,0" VerticalAlignment="Center"
+                                Background="White" BorderBrush="#4A4A46" BorderThickness="1"
+                                CornerRadius="17" Padding="12,7">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Rectangle Width="22" Height="2" Fill="#4A4A46" VerticalAlignment="Center" />
                                 <TextBlock Text="编辑" FontSize="13" LetterSpacing="1"
-                                           Foreground="#4C4C48" VerticalAlignment="Center" />
+                                           Foreground="#3C3C38" VerticalAlignment="Center" />
                             </StackPanel>
                         </Button>
                     </Grid>
