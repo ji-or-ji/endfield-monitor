@@ -20,8 +20,11 @@ public partial class DeviceCardItem : ViewModelBase
     /// <summary>连不连得上。连不上时整张卡缓动置灰（样式与过渡见 MainWindow 的 Border.card）。</summary>
     [ObservableProperty] public partial bool Reachable { get; set; } = true;
 
-    /// <summary>这一台的地址与口令。多设备配置做完后由它驱动真正的切换，现在还是空的。</summary>
+    /// <summary>这一台的地址与口令。多设备配置做完后由它驱动真正的切换。</summary>
     public string Server { get; init; } = "";
 
     public string Token { get; init; } = "";
+
+    /// <summary>备注。目前没有地方用，先存着。</summary>
+    public string Desc { get; init; } = "";
 }
