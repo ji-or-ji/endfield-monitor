@@ -18,7 +18,7 @@ public sealed class SnapshotClient : IDisposable
         Timeout = TimeSpan.FromSeconds(4),
     };
 
-    /// <summary>服务端基地址，例如 http://192.168.101.14:8898</summary>
+    /// <summary>服务端基地址，例如 http://192.168.1.10:8898</summary>
     public string BaseUrl { get; set; } = "";
 
     /// <summary>共享口令，服务端未设置时留空。</summary>

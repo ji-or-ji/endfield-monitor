@@ -119,23 +119,6 @@ func splitExec(s string) []string {
 	return out
 }
 
-// flatpakAppID 取 Flatpak 的 Exec 里那个 --app-id= 的值。
-//
-// 真正的 Flatpak 反查不走这条：那类进程的可执行文件是 bwrap，在 Exec 里找 app-id
-// 对不上。反查走“读环境变量 + 认导出的 .desktop 文件名”（见 flatpakID 与 findEntryByBase）。
-// 这里只留着解析导出的 .desktop 内容时可能用得上。
-func flatpakAppID(exec string) string {
-	if !strings.Contains(exec, "--app-id=") {
-		return ""
-	}
-	for _, f := range strings.Fields(exec) {
-		if v, ok := strings.CutPrefix(f, "--app-id="); ok {
-			return v
-		}
-	}
-	return ""
-}
-
 // matchDesktopEntry 按可执行文件路径反查桌面条目，返回 nil 表示没匹配上。
 //
 // 依据是 Exec= 里那个程序的 basename 与目标可执行文件相同；TryExec= 能对上算更硬的信号。
