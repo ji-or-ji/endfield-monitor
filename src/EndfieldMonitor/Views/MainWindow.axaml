@@ -28,23 +28,27 @@
                             Background="{StaticResource DarkBrush}" />
                 </Grid>
 
-                <Border Grid.Column="1" Margin="0,8,40,8" Padding="18,14" VerticalAlignment="Center"
-                        Background="#F1F1EE" BorderBrush="{StaticResource LineBrush}"
+                <!-- 外侧白框，内侧黑长条（对着参考图来的） -->
+                <Border Grid.Column="1" Margin="0,8,40,8" VerticalAlignment="Center"
+                        Background="White" BorderBrush="{StaticResource LineBrush}"
                         BorderThickness="1" CornerRadius="4" BoxShadow="0 2 8 0 #10000000">
                     <Grid ColumnDefinitions="4,*,Auto">
+                        <!-- 外框左沿的黄条 -->
                         <Border Grid.Column="0" Background="{StaticResource YellowBrush}" />
-                        <StackPanel Grid.Column="1" Margin="16,0" Spacing="7" VerticalAlignment="Center">
-                            <TextBlock Text="{Binding Name}" FontSize="15"
-                                       Foreground="{StaticResource TextBrush}" />
-                            <Border Background="{StaticResource DarkBrush}" Padding="8,2" CornerRadius="2"
-                                    HorizontalAlignment="Left">
+                        <!-- 内侧黑色长条 -->
+                        <Border Grid.Column="1" Margin="12,10" Background="{StaticResource DarkBrush}"
+                                CornerRadius="3" Padding="18,14">
+                            <StackPanel Spacing="7" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Name}" FontSize="15" Foreground="#F2F2EF" />
                                 <TextBlock Text="{Binding Tag}" FontSize="11"
-                                           Foreground="{StaticResource YellowBrush}" />
-                            </Border>
-                        </StackPanel>
-
-                        <!-- 编辑：参考图里是浅色药丸，前面带一个小圆点 -->
-                        <Button Grid.Column="2" VerticalAlignment="Center"
+                                           Foreground="{StaticResource YellowBrush}"
+                                           IsVisible="{Binding IsCurrent}" />
+                                <TextBlock Text="{Binding Tag}" FontSize="11" Foreground="#B4B4AF"
+                                           IsVisible="{Binding !IsCurrent}" />
+                            </StackPanel>
+                        </Border>
+                        <!-- 编辑：浅色药丸 -->
+                        <Button Grid.Column="2" Margin="4,0,10,0" VerticalAlignment="Center"
                                 Background="#ECECEA" BorderBrush="{StaticResource LineBrush}"
                                 BorderThickness="1" CornerRadius="17" Padding="14,7">
                             <StackPanel Orientation="Horizontal" Spacing="7">
