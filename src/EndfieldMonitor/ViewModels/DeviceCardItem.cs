@@ -1,17 +1,24 @@
+using CommunityToolkit.Mvvm.ComponentModel;
+
 namespace EndfieldMonitor.ViewModels;
 
 /// <summary>
 /// 设备页里的一条：左边是描述文字，右边是卡片条，两者同处一条，所以天然一起上下。
-/// Row/RowSpan 是它在页面三行网格里的落位，由数量决定，见 MainViewModel.LayoutDeviceCards。
+/// 点左侧这块即把被控切到这一台并回主页。
 /// </summary>
-public class DeviceCardItem
+public partial class DeviceCardItem : ViewModelBase
 {
     /// <summary>设备名。左上角大字与卡片里的小字用的是同一个。</summary>
-    public string Name { get; init; } = "-";
+    [ObservableProperty] public partial string Name { get; set; } = "-";
 
-    /// <summary>卡片里的状态小签：当前被控 / 未指定。</summary>
-    public string Tag { get; init; } = "";
+    /// <summary>卡片里的状态文字：当前被控 / 未指定。</summary>
+    [ObservableProperty] public partial string Tag { get; set; } = "";
 
-    /// <summary>是不是当前被控的那一台（当前只用来区分签的颜色，先留着）。</summary>
-    public bool IsCurrent { get; init; }
+    /// <summary>是不是当前被控的那一台。</summary>
+    [ObservableProperty] public partial bool IsCurrent { get; set; }
+
+    /// <summary>这一台的地址与口令。多设备配置做完后由它驱动真正的切换，现在还是空的。</summary>
+    public string Server { get; init; } = "";
+
+    public string Token { get; init; } = "";
 }

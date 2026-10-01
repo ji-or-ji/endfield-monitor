@@ -101,6 +101,13 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>点设备页左侧那一条：把被控切到它并回主页。按钮在数据模板里，只能走事件，不能 FindControl。</summary>
+    private void OnDeviceCardClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { DataContext: DeviceCardItem item } && DataContext is MainViewModel vm)
+            vm.SwitchToDevice(item);
+    }
+
     private void OnNavOverview(object? sender, RoutedEventArgs e) => (DataContext as MainViewModel)?.GoOverview();
 
     private void OnNavPerf(object? sender, RoutedEventArgs e) => (DataContext as MainViewModel)?.GoPerf();
