@@ -319,6 +319,60 @@
                         </ScrollViewer>
                     </Grid>
 
+                    <!-- 页三：跨设备监控总览（底栏「切换被控」进来；淡灰图标按钮通往设备配置页） -->
+                    <Grid Grid.Row="0" IsVisible="{Binding IsDevicePage}">
+                        <Border Width="640" Padding="26"
+                                HorizontalAlignment="Right" VerticalAlignment="Top"
+                                Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource LineBrush}"
+                                BorderThickness="1" BoxShadow="0 2 8 0 #10000000">
+                            <StackPanel Spacing="18">
+                                <!-- 标题行：淡灰图标本身是个按钮，给设备配置页留位；右侧一枚退回 -->
+                                <Grid ColumnDefinitions="Auto,*,Auto">
+                                    <Button Grid.Column="0" Classes="round" Name="DeviceConfigButton"
+                                            Width="34" Height="34" CornerRadius="17" ToolTip.Tip="设备配置">
+                                        <Path Data="M12 3a9 9 0 1 0 0 18 9 9 0 1 0 0-18 M3 12h18 M12 3c2.5 2.8 2.5 15.2 0 18 M12 3c-2.5 2.8-2.5 15.2 0 18"
+                                              Stroke="#9C9C97" StrokeThickness="1.4" Width="19" Height="19"
+                                              Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Button>
+                                    <TextBlock Grid.Column="1" Text="跨设备监控总览" FontSize="17" LetterSpacing="3"
+                                               Foreground="#4C4C48" VerticalAlignment="Center" Margin="10,0,0,0" />
+                                    <Button Grid.Column="2" Classes="round" Name="DeviceOverviewCloseButton"
+                                            Width="34" Height="34" CornerRadius="17" ToolTip.Tip="返回总览">
+                                        <Path Data="M5.2 5.2L18.8 18.8 M18.8 5.2L5.2 18.8"
+                                              Stroke="#B0B0AB" StrokeThickness="2.6" Width="14" Height="14"
+                                              Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Button>
+                                </Grid>
+
+                                <!-- 当前被控的那一台。多设备列表等配置页做完再展开 -->
+                                <Border Background="#F1F1EE" BorderBrush="{StaticResource LineBrush}"
+                                        BorderThickness="1" CornerRadius="4">
+                                    <Grid ColumnDefinitions="4,*,Auto">
+                                        <Border Grid.Column="0" Background="{StaticResource YellowBrush}" />
+                                        <StackPanel Grid.Column="1" Margin="16,14" Spacing="7">
+                                            <TextBlock Text="{Binding TargetText}" FontSize="15"
+                                                       Foreground="{StaticResource TextBrush}" />
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <Border Background="{StaticResource DarkBrush}" Padding="8,2" CornerRadius="2">
+                                                    <TextBlock Text="当前被控" FontSize="11"
+                                                               Foreground="{StaticResource YellowBrush}" />
+                                                </Border>
+                                                <TextBlock Text="其它设备待配置页加入" FontSize="11"
+                                                           Foreground="{StaticResource TextDimBrush}"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                        <Button Grid.Column="2" Name="DeviceEditButton" Margin="16,0,16,0"
+                                                VerticalAlignment="Center" Background="{StaticResource Dark2Brush}"
+                                                Foreground="White" CornerRadius="6" Padding="18,8">
+                                            <TextBlock Text="编辑" FontSize="13" LetterSpacing="1" />
+                                        </Button>
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
                     <!-- 底栏：左下数值不动，中间圆形刷新，右下两个黑按钮 -->
                     <Border Grid.Row="1" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource LineBrush}"
                             BorderThickness="1" Padding="18,14" BoxShadow="0 2 8 0 #10000000">
@@ -369,60 +423,6 @@
                     </Border>
             </Grid>
         </Grid>
-
-        <!-- ============ 跨设备监控总览（底栏「切换被控」进来；图标按钮通往设备配置页） ============ -->
-        <Border Name="DeviceOverviewOverlay" IsVisible="{Binding IsDeviceOverviewOpen}" Background="#B8F2F1ED">
-            <Border Width="640" Padding="26"
-                    HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,24,36,0"
-                    Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource LineBrush}"
-                    BorderThickness="1" BoxShadow="0 14 44 0 #4A000000">
-                <StackPanel Spacing="18">
-                    <!-- 标题行：淡灰图标本身是个按钮，给设备配置页留位；右侧一枚返回 -->
-                    <Grid ColumnDefinitions="Auto,*,Auto">
-                        <Button Grid.Column="0" Classes="round" Name="DeviceConfigButton"
-                                Width="34" Height="34" CornerRadius="17" ToolTip.Tip="设备配置">
-                            <Path Data="M12 3a9 9 0 1 0 0 18 9 9 0 1 0 0-18 M3 12h18 M12 3c2.5 2.8 2.5 15.2 0 18 M12 3c-2.5 2.8-2.5 15.2 0 18"
-                                  Stroke="#9C9C97" StrokeThickness="1.4" Width="19" Height="19"
-                                  Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Button>
-                        <TextBlock Grid.Column="1" Text="跨设备监控总览" FontSize="17" LetterSpacing="3"
-                                   Foreground="#4C4C48" VerticalAlignment="Center" Margin="10,0,0,0" />
-                        <Button Grid.Column="2" Classes="round" Name="DeviceOverviewCloseButton"
-                                Width="34" Height="34" CornerRadius="17">
-                            <Path Data="M5.2 5.2L18.8 18.8 M18.8 5.2L5.2 18.8"
-                                  Stroke="#B0B0AB" StrokeThickness="2.6" Width="14" Height="14"
-                                  Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Button>
-                    </Grid>
-
-                    <!-- 当前被控的那一台。多设备列表等配置页做完再展开 -->
-                    <Border Background="#F1F1EE" BorderBrush="{StaticResource LineBrush}"
-                            BorderThickness="1" CornerRadius="4">
-                        <Grid ColumnDefinitions="4,*,Auto">
-                            <Border Grid.Column="0" Background="{StaticResource YellowBrush}" />
-                            <StackPanel Grid.Column="1" Margin="16,14" Spacing="7">
-                                <TextBlock Text="{Binding TargetText}" FontSize="15"
-                                           Foreground="{StaticResource TextBrush}" />
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <Border Background="{StaticResource DarkBrush}" Padding="8,2" CornerRadius="2">
-                                        <TextBlock Text="当前被控" FontSize="11"
-                                                   Foreground="{StaticResource YellowBrush}" />
-                                    </Border>
-                                    <TextBlock Text="其它设备待配置页加入" FontSize="11"
-                                               Foreground="{StaticResource TextDimBrush}"
-                                               VerticalAlignment="Center" />
-                                </StackPanel>
-                            </StackPanel>
-                            <Button Grid.Column="2" Name="DeviceEditButton" Margin="16,0,16,0"
-                                    VerticalAlignment="Center" Background="{StaticResource Dark2Brush}"
-                                    Foreground="White" CornerRadius="6" Padding="18,8">
-                                <TextBlock Text="编辑" FontSize="13" LetterSpacing="1" />
-                            </Button>
-                        </Grid>
-                    </Border>
-                </StackPanel>
-            </Border>
-        </Border>
 
         <!-- ============ 连接设置覆盖层 ============ -->
         <Border Name="SettingsOverlay" IsVisible="{Binding IsSettingsOpen}" Background="#73222220">

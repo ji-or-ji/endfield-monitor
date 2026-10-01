@@ -53,21 +53,12 @@ public partial class MainWindow : Window
             };
         }
 
-        // ---- 跨设备监控总览 ----
+        // ---- 跨设备监控总览（整页：底栏「切换被控」进，面板右上角的✕退回总览） ----
         if (this.FindControl<Button>("SwitchDeviceButton") is { } switchDevice)
-            switchDevice.Click += (_, _) => (DataContext as MainViewModel)?.OpenDeviceOverview();
+            switchDevice.Click += (_, _) => (DataContext as MainViewModel)?.GoDevicePage();
 
-        if (this.FindControl<Button>("DeviceOverviewCloseButton") is { } deviceOverviewClose)
-            deviceOverviewClose.Click += (_, _) => (DataContext as MainViewModel)?.CloseDeviceOverview();
-
-        if (this.FindControl<Border>("DeviceOverviewOverlay") is { } deviceOverview)
-        {
-            deviceOverview.PointerPressed += (s, e) =>
-            {
-                if (ReferenceEquals(e.Source, deviceOverview))
-                    (DataContext as MainViewModel)?.CloseDeviceOverview();
-            };
-        }
+        if (this.FindControl<Button>("DeviceOverviewCloseButton") is { } deviceOverviewBack)
+            deviceOverviewBack.Click += (_, _) => (DataContext as MainViewModel)?.GoOverview();
 
         // ---- 型号详情 ----
         if (this.FindControl<Button>("DetailCloseButton") is { } detailClose)
@@ -116,7 +107,7 @@ public partial class MainWindow : Window
         {
             if (Environment.GetEnvironmentVariable("ENF_PAGE") == "perf") vm.GoPerf();
             if (Environment.GetEnvironmentVariable("ENF_SETTINGS") == "1") vm.OpenSettings();
-            if (Environment.GetEnvironmentVariable("ENF_DEVOVERVIEW") == "1") vm.OpenDeviceOverview();
+            if (Environment.GetEnvironmentVariable("ENF_DEVOVERVIEW") == "1") vm.GoDevicePage();
 
             // 开发用：ENF_DETAIL=<设备 Key> 打开某个设备的详情面板（等首帧数据到了再开）
             string? detailKey = Environment.GetEnvironmentVariable("ENF_DETAIL");
