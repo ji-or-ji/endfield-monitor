@@ -11,6 +11,42 @@
         Background="{StaticResource BgBrush}"
         FontFamily="{StaticResource UiFont}">
 
+    <!-- 设备页每一条：左边描述文字，右边卡片条，两者同处一条，所以天然一起上下 -->
+    <Window.Resources>
+        <DataTemplate x:Key="DeviceCardRow" x:DataType="vm:DeviceCardItem">
+            <Grid ColumnDefinitions="52*,48*">
+                <StackPanel Grid.Column="0" VerticalAlignment="Center" Spacing="10" Margin="40,0,24,0">
+                    <TextBlock Text="被控设备" FontSize="13" LetterSpacing="4"
+                               Foreground="{StaticResource TextDimBrush}" />
+                    <TextBlock Text="{Binding Name}" FontSize="36" LetterSpacing="1"
+                               Foreground="{StaticResource TextBrush}" />
+                </StackPanel>
+
+                <Border Grid.Column="1" Margin="0,8,40,8" Padding="18,16" VerticalAlignment="Center"
+                        Background="#F1F1EE" BorderBrush="{StaticResource LineBrush}"
+                        BorderThickness="1" CornerRadius="4" BoxShadow="0 2 8 0 #10000000">
+                    <Grid ColumnDefinitions="4,*,Auto">
+                        <Border Grid.Column="0" Background="{StaticResource YellowBrush}" />
+                        <StackPanel Grid.Column="1" Margin="16,0" Spacing="7" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Name}" FontSize="15"
+                                       Foreground="{StaticResource TextBrush}" />
+                            <Border Background="{StaticResource DarkBrush}" Padding="8,2" CornerRadius="2"
+                                    HorizontalAlignment="Left">
+                                <TextBlock Text="{Binding Tag}" FontSize="11"
+                                           Foreground="{StaticResource YellowBrush}" />
+                            </Border>
+                        </StackPanel>
+                        <Button Grid.Column="2" Margin="16,0,0,0" VerticalAlignment="Center"
+                                Background="{StaticResource Dark2Brush}" Foreground="White"
+                                CornerRadius="6" Padding="18,8">
+                            <TextBlock Text="编辑" FontSize="13" LetterSpacing="1" />
+                        </Button>
+                    </Grid>
+                </Border>
+            </Grid>
+        </DataTemplate>
+    </Window.Resources>
+
     <Window.Styles>
         <Style Selector="Button.tab">
             <Setter Property="Width" Value="38" />
@@ -340,42 +376,29 @@
                             </Button>
                         </StackPanel>
 
-                        <!-- 左：描述文本，与右侧卡片同处一行，所以天然跟随它的上下 -->
-                        <StackPanel Grid.Column="0" Grid.RowSpan="3" VerticalAlignment="Center" Spacing="12" Margin="40,0,24,0">
-                            <TextBlock Text="被控设备" FontSize="13" LetterSpacing="4"
-                                       Foreground="{StaticResource TextDimBrush}" />
-                            <TextBlock Text="{Binding DeviceNameText}" FontSize="38" LetterSpacing="1"
-                                       Foreground="{StaticResource TextBrush}" />
-                        </StackPanel>
+                        <!-- 三条以上：改成滚动列表。上面留出标题那一行的高度，不然会被第一条压住 -->
+                        <ScrollViewer Grid.RowSpan="3" Grid.ColumnSpan="2" Margin="0,64,0,0"
+                                      VerticalScrollBarVisibility="Auto"
+                                      IsVisible="{Binding IsDeviceListScroll}">
+                            <ItemsControl ItemsSource="{Binding DeviceCards}"
+                                          ItemTemplate="{StaticResource DeviceCardRow}" />
+                        </ScrollViewer>
 
-                        <!-- 卡片条：左端略过中线（列分界在 52%）。纵向一台居中（1/2），
-                             两台时各占两行落在 1/3 与 2/3，三台及以上改成滚动列表 -->
-                        <Border Grid.Column="1" Grid.RowSpan="3" Padding="18,16" Margin="0,0,40,0"
-                                HorizontalAlignment="Stretch" VerticalAlignment="Center"
-                                Background="#F1F1EE" BorderBrush="{StaticResource LineBrush}"
-                                BorderThickness="1" CornerRadius="4" BoxShadow="0 2 8 0 #10000000">
-                            <Grid ColumnDefinitions="4,*,Auto">
-                                <Border Grid.Column="0" Background="{StaticResource YellowBrush}" />
-                                <StackPanel Grid.Column="1" Margin="16,0" Spacing="7" VerticalAlignment="Center">
-                                    <TextBlock Text="{Binding TargetText}" FontSize="15"
-                                               Foreground="{StaticResource TextBrush}" />
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <Border Background="{StaticResource DarkBrush}" Padding="8,2" CornerRadius="2">
-                                            <TextBlock Text="当前被控" FontSize="11"
-                                                       Foreground="{StaticResource YellowBrush}" />
-                                        </Border>
-                                        <TextBlock Text="其它设备待配置页加入" FontSize="11"
-                                                   Foreground="{StaticResource TextDimBrush}"
-                                                   VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </StackPanel>
-                                <Button Grid.Column="2" Name="DeviceEditButton" Margin="16,0,0,0"
-                                        VerticalAlignment="Center" Background="{StaticResource Dark2Brush}"
-                                        Foreground="White" CornerRadius="6" Padding="18,8">
-                                    <TextBlock Text="编辑" FontSize="13" LetterSpacing="1" />
-                                </Button>
-                            </Grid>
-                        </Border>
+                        <!-- 一台：跨满三行，中心落在 1/2 -->
+                        <ContentControl Grid.RowSpan="3" Grid.ColumnSpan="2"
+                                        IsVisible="{Binding IsSingleDevice}"
+                                        Content="{Binding CardA}"
+                                        ContentTemplate="{StaticResource DeviceCardRow}" />
+
+                        <!-- 两台：各占两行，行分界正好是 1/3 与 2/3，中心落在其上 -->
+                        <ContentControl Grid.Row="0" Grid.RowSpan="2" Grid.ColumnSpan="2"
+                                        IsVisible="{Binding HasTwoDevices}"
+                                        Content="{Binding CardA}"
+                                        ContentTemplate="{StaticResource DeviceCardRow}" />
+                        <ContentControl Grid.Row="1" Grid.RowSpan="2" Grid.ColumnSpan="2"
+                                        IsVisible="{Binding HasTwoDevices}"
+                                        Content="{Binding CardB}"
+                                        ContentTemplate="{StaticResource DeviceCardRow}" />
                     </Grid>
 
                     <!-- 底栏：左下数值不动，中间圆形刷新，右下两个黑按钮 -->
