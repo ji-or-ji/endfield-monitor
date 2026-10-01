@@ -229,30 +229,35 @@ foreach ($t in @(
 # 只能连整个发行版一起删（tag 会留着，代码不受影响）。历史版本存在 GitHub 那边。
 if ($Prune) {
     Write-Host '  Gitee 清理旧版本（只留最近 2 版）...' -ForegroundColor Yellow
-    $all = @(Invoke-RestMethod -Uri "$giteeApi/releases" -TimeoutSec 60)
-    # 先把每个发行版的版本分数算出来。特意放在普通循环里算，不塞进排序/筛选的表达式：
-    # 那些表达式在这台机器上取这些对象的属性时行为不可靠（排序会静默失效，
-    # 于是“前两个”拿到最老的两个，反而删掉真正该留的）。
-    $scored = foreach ($r in $all) {
+    # 注意：PowerShell 7 的 Invoke-RestMethod 拿到 JSON 数组时，是把它当成“一个对象”
+    # 返回的；再套一层 @() 就成了“只含这一个数组的数组”，foreach 因此只走一圈，
+    # 而 $r.tag_name 是全部 tag 拼起来的字符串。之前那些排序静默失效、筛选返回四个 id，
+    # 根子都在这里。所以这里不套 @()，直接拿返回值遍历。
+    $all = Invoke-RestMethod -Uri "$giteeApi/releases" -TimeoutSec 60
+    # 手写“取版本最高的两个”，不用 Sort-Object：
+    # 在这台机器上，管道里的排序/筛选对这些对象的属性不可靠（会静默失效，
+    # 结果就是取到最老的两个、反而删掉真正该留的）。纯循环 + 数值比较是确定的。
+    $best1 = -1; $best2 = -1; $tag1 = ''; $tag2 = ''
+    foreach ($r in $all) {
         $m = [regex]::Match([string]$r.tag_name, '(\d+)\.(\d+)\.(\d+)')
-        [pscustomobject]@{
-            Tag   = [string]$r.tag_name
-            Id    = $r.id
-            Score = if ($m.Success) {
-                [int]$m.Groups[1].Value * 1000000 + [int]$m.Groups[2].Value * 1000 + [int]$m.Groups[3].Value
-            } else { -1 }
+        if (-not $m.Success) { continue }
+        $s = [int]$m.Groups[1].Value * 1000000 + [int]$m.Groups[2].Value * 1000 + [int]$m.Groups[3].Value
+        if ($s -gt $best1) {
+            $best2 = $best1; $tag2 = $tag1; $best1 = $s; $tag1 = [string]$r.tag_name
+        } elseif ($s -gt $best2) {
+            $best2 = $s; $tag2 = [string]$r.tag_name
         }
     }
-    $sorted = @($scored | Sort-Object Score -Descending)
-    $keep = @($sorted | Select-Object -First 2 | ForEach-Object { $_.Tag }) + $Version
+    $keep = @($tag1, $tag2, $Version) | Where-Object { $_ -ne '' }
     Write-Host "    保留: $($keep -join ', ')" -ForegroundColor DarkGray
-    foreach ($r in $sorted) {
-        if ($keep -contains $r.Tag) { continue }
+    foreach ($r in $all) {
+        $tag = [string]$r.tag_name
+        if ($keep -contains $tag) { continue }
         try {
-            Invoke-RestMethod -Method Delete -Uri "$giteeApi/releases/$($r.Id)?access_token=$giteeToken" -TimeoutSec 60 | Out-Null
-            Write-Host "    已删 $($r.Tag)（tag 保留）" -ForegroundColor DarkGray
+            Invoke-RestMethod -Method Delete -Uri "$giteeApi/releases/$($r.id)?access_token=$giteeToken" -TimeoutSec 60 | Out-Null
+            Write-Host "    已删 $tag（tag 保留）" -ForegroundColor DarkGray
         } catch {
-            Write-Host "    删 $($r.Tag) 失败：$(& $sanitize $_.Exception.Message)" -ForegroundColor Red
+            Write-Host "    删 $tag 失败：$(& $sanitize $_.Exception.Message)" -ForegroundColor Red
         }
     }
 }
