@@ -68,6 +68,9 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] public partial bool IsSettingsOpen { get; set; }
     [ObservableProperty] public partial string EditServer { get; set; } = "";
     [ObservableProperty] public partial string EditToken { get; set; } = "";
+
+    /// <summary>设置窗里「服务器地址」那一栏的说明。内容随当前处境变，见 BuildServerHint。</summary>
+    [ObservableProperty] public partial string ServerHint { get; set; } = "";
     [ObservableProperty] public partial string ParticleMode { get; set; } = "full";
     [ObservableProperty] public partial int EditParticleIndex { get; set; }
 
@@ -136,6 +139,12 @@ public partial class MainViewModel : ViewModelBase
     private string? _downloaded;
     private string _collectorVersion = "";
 
+    /// <summary>拉本机采集端失败的原因（没失败就是空）。连不上时一并说给用户听。</summary>
+    private string _localLaunchError = "";
+
+    /// <summary>最近一次拉起本机采集端的时刻。用来区分「正在等它起来」与「真的离线」。</summary>
+    private DateTime _localLaunchAt = DateTime.MinValue;
+
     /// <summary>环上右上角标（橘弧一侧）里的 CPU 读数。</summary>
     [ObservableProperty] public partial string ChipCpu { get; set; } = "-";
 
@@ -192,11 +201,19 @@ public partial class MainViewModel : ViewModelBase
                     SourceText = "实时";
                 }
             }
-            else if ((DateTime.Now - _lastLiveAt).TotalSeconds > 4 && SourceText != "离线")
+            else if ((DateTime.Now - _lastLiveAt).TotalSeconds > 4)
             {
-                IsLive = false;
-                SourceText = "离线";
-                ClearToOffline();
+                // 刚拉起本机采集端时，它要几秒才起来（那个 exe 第一次跑尤其慢），
+                // 这段时间别急着报「离线」——否则看起来就像是没拉起来，
+                // 使用者会去手动开一个，反而多出一个控制台窗口。
+                var waiting = (DateTime.Now - _localLaunchAt).TotalSeconds < 60;
+                var text = waiting ? "正在拉起采集端…" : "离线";
+                if (SourceText != text)
+                {
+                    IsLive = false;
+                    SourceText = text;
+                    ClearToOffline();
+                }
             }
 
             await Task.Delay(1000);
@@ -660,6 +677,7 @@ public partial class MainViewModel : ViewModelBase
     {
         EditServer = _config.Server;
         EditToken = _config.Token;
+        ServerHint = BuildServerHint();
         EditParticleIndex = ModeToIndex(_config.ParticleMode);
         EditBatchCloud = _config.BatchCloud;
         EditShowAbsolute = _config.ShowAbsolute;
@@ -687,14 +705,59 @@ public partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// 地址是不是指向本机（留空、localhost、127.0.0.1、::1、0.0.0.0），顺带取出口。
+    /// 留空按本机算：那是「我自己这台」的简写。
+    /// </summary>
+    private static bool IsLoopbackTarget(string server, out int port)
+    {
+        port = 8898;
+        if (string.IsNullOrWhiteSpace(server))
+        {
+            return true;
+        }
+        var s = server.Trim();
+        var host = s;
+        if (s.StartsWith("[", StringComparison.Ordinal))
+        {
+            // [::1]:8898
+            var end = s.IndexOf(']');
+            if (end > 0)
+            {
+                host = s[1..end];
+                var rest = s[(end + 1)..];
+                if (rest.StartsWith(":", StringComparison.Ordinal)
+                    && int.TryParse(rest[1..], out var p6) && p6 > 0)
+                {
+                    port = p6;
+                }
+            }
+        }
+        else
+        {
+            var colon = s.LastIndexOf(':');
+            if (colon > 0 && int.TryParse(s[(colon + 1)..], out var p) && p > 0)
+            {
+                host = s[..colon];
+                port = p;
+            }
+        }
+        host = host.Trim();
+        return host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+            || host == "127.0.0.1"
+            || host == "::1"
+            || host == "0.0.0.0";
+    }
+
+    /// <summary>
     /// 同机自看的自动档：客户端与采集端放在同一个文件夹时（发行版里的 bundle），
     /// 由客户端负责把采集端拉起来，省得让人自己开第二个窗口。
     ///
     /// 本机已经在监听就不重复拉起——可能用户自己开了一个，留着当被监视端给别的
     /// 机器看。客户端退出也不去动它拉起来的那个进程：它可能正被别人看着。
     /// </summary>
-    private static void EnsureLocalCollector(int port)
+    private void EnsureLocalCollector(int port)
     {
+        _localLaunchError = "";
         if (IsLocalPortOpen(port))
         {
             return;
@@ -720,11 +783,35 @@ public partial class MainViewModel : ViewModelBase
                 UseShellExecute = false,
                 CreateNoWindow = true,
             });
+            _localLaunchAt = DateTime.Now;
         }
-        catch
+        catch (Exception ex)
         {
-            // 拉不起来就算了，界面会照常报离线
+            // 拉不起来不中断启动，但把原因留下来：连不上时设置窗会把它显示出来，
+            // 否则用户只看见「离线」，无从下手。
+            _localLaunchError = ex.Message;
         }
+    }
+
+    /// <summary>
+    /// 设置窗里地址那栏的说明文字。除了一般的「留空即本机」，连不上时补一句
+    /// 当前该怎么做——套件用户最常见的错就是地址里留着别人的 IP。
+    /// </summary>
+    private string BuildServerHint()
+    {
+        const string basic = "留空就监视本机（同目录里带着采集端的话会自动拉起来）；要看别的机器，填 地址:端口。";
+        if (_localLaunchError.Length > 0)
+        {
+            return $"本机采集端没能启动：{_localLaunchError}\n{basic}";
+        }
+        var target = AppConfig.NormalizeServer(_config.Server);
+        var bundled = FindBundledCollector() is not null;
+        var offlineAwhile = (DateTime.Now - _lastLiveAt).TotalSeconds > 6;
+        if (!bundled || offlineAwhile is false || target.Length == 0 || IsLoopbackTarget(target, out _))
+        {
+            return basic;
+        }
+        return $"当前连不上 {target}。这个文件夹里带着采集端，把地址清空就能看本机。\n{basic}";
     }
 
     private static bool IsLocalPortOpen(int port)
@@ -881,8 +968,13 @@ public partial class MainViewModel : ViewModelBase
         if (server.Length == 0)
         {
             server = "127.0.0.1:8898";
-            // 同机自看：同文件夹里带着采集端就顺手拉起来，不让人自己开第二个窗口
-            EnsureLocalCollector(8898);
+        }
+        // 目标是本机就顺手把同目录里的采集端拉起来，不让人自己开第二个窗口。
+        // 以前这里只在“地址留空”时才拉：使用者在向导里保留了预填的地址，
+        // 或者老老实实填了 127.0.0.1，都会漏掉拉起这一步。
+        if (IsLoopbackTarget(server, out var localPort))
+        {
+            EnsureLocalCollector(localPort);
         }
         _client.BaseUrl = "http://" + server;
         _client.Token = _config.Token;

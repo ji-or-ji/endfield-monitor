@@ -11,7 +11,12 @@ namespace EndfieldMonitor.Services;
 /// </summary>
 public sealed class AppConfig
 {
-    [JsonPropertyName("server")] public string Server { get; set; } = "192.168.101.14:8898";
+    /// <summary>
+    /// 服务器地址，形如 host:port。留空 = 监视本机：同目录带着采集端时客户端会自己拉起来。
+    /// 这里刻意不预填具体地址：套件分发出去后预填一个作者的局域网 IP，使用者多半
+    /// 照单收下，结果既连不上、又不会触发本机自看。
+    /// </summary>
+    [JsonPropertyName("server")] public string Server { get; set; } = "";
     [JsonPropertyName("token")] public string Token { get; set; } = "";
 
     /// <summary>中心点云开销档：full（默认，仿终末地原版）/ lite / off。</summary>
