@@ -79,12 +79,25 @@ public partial class MainViewModel : ViewModelBase
 
     [ObservableProperty] public partial string EditDeviceName { get; set; } = "";
 
-    [ObservableProperty] public partial string EditDeviceServer { get; set; } = "";
+    [ObservableProperty] public partial string EditDeviceDesc { get; set; } = "";
+
+    [ObservableProperty] public partial string EditDeviceAddr { get; set; } = "";
+
+    [ObservableProperty] public partial string EditDevicePort { get; set; } = "8898";
 
     [ObservableProperty] public partial string EditDeviceToken { get; set; } = "";
 
-    /// <summary>新建被控页里填的地址与口令。先跟着同一份配置走，以后改成设备列表。</summary>
-    [ObservableProperty] public partial string NewDeviceServer { get; set; } = "";
+    /// <summary>正在编辑的那条记录的原始地址，保存时用它定位要覆盖的那条。</summary>
+    private string _editDeviceKey = "";
+
+    /// <summary>新建被控页要填的五栏：名称、描述、地址、端口、口令。</summary>
+    [ObservableProperty] public partial string NewDeviceName { get; set; } = "";
+
+    [ObservableProperty] public partial string NewDeviceDesc { get; set; } = "";
+
+    [ObservableProperty] public partial string NewDeviceAddr { get; set; } = "";
+
+    [ObservableProperty] public partial string NewDevicePort { get; set; } = "8898";
 
     [ObservableProperty] public partial string NewDeviceToken { get; set; } = "";
 
@@ -707,28 +720,98 @@ public partial class MainViewModel : ViewModelBase
     public void GoDevicePage() { IsOverviewPage = false; IsPerfPage = false; IsDevicePage = true; IsNewDevicePage = false; IsBottomBarVisible = false; _ = ProbeDevicesAsync(); }
     public void GoNewDevicePage() { IsOverviewPage = false; IsPerfPage = false; IsDevicePage = false; IsNewDevicePage = true; IsBottomBarVisible = false; }
 
-    /// <summary>新建被控：现在只有地址与口令两栏，保存即切到这台。多设备留到设备列表做完。</summary>
+    /// <summary>新建被控：把五栏写成一条记录存进配置，并切到这一台。</summary>
     public void SaveNewDevice()
     {
-        EditServer = NewDeviceServer.Trim();
-        EditToken = NewDeviceToken.Trim();
-        SaveSettings();
+        var rec = new DeviceRecord
+        {
+            Name = NewDeviceName.Trim(),
+            Desc = NewDeviceDesc.Trim(),
+            Addr = AppConfig.NormalizeServer(NewDeviceAddr),
+            Port = ParsePort(NewDevicePort),
+            Token = NewDeviceToken.Trim(),
+        };
+        // 地址留空 = 监视本机
+        if (rec.Addr.Length == 0) rec.Addr = "127.0.0.1";
+
+        UpsertDevice(rec);
+        ApplyDevice(rec);
         GoDevicePage();
     }
 
+    /// <summary>按地址端口去重写进配置（同一个地址就覆盖那一条）。</summary>
+    private void UpsertDevice(DeviceRecord rec)
+    {
+        var i = _config.Devices.FindIndex(d =>
+            string.Equals(d.Endpoint, rec.Endpoint, StringComparison.OrdinalIgnoreCase));
+        if (i >= 0) _config.Devices[i] = rec;
+        else _config.Devices.Add(rec);
+        _config.Save();
+    }
+
+    /// <summary>把某台设为当前连接，并落盘。</summary>
+    private void ApplyDevice(DeviceRecord rec)
+    {
+        _config.Server = rec.Endpoint;
+        _config.Token = rec.Token;
+        EditServer = rec.Endpoint;
+        EditToken = rec.Token;
+        _config.Save();
+    }
+
+    private static int ParsePort(string? raw) =>
+        int.TryParse(raw?.Trim(), out var p) && p > 0 && p <= 65535 ? p : 8898;
+
+    /// <summary>把 host:port 拆开；没写端口就回默认。地址则可能是空的。</summary>
+    private static (string Host, string Port) SplitEndpoint(string? endpoint)
+    {
+        var s = (endpoint ?? "").Trim();
+        var i = s.LastIndexOf(':');
+        if (i > 0 && int.TryParse(s[(i + 1)..], out var p)) return (s[..i], p.ToString());
+        return (s, "8898");
+    }
+
     /// <summary>
-    /// <summary>点卡片上的「编辑」：弹一张卡。里面放什么等设备列表做完再定，先给名字与两栏。</summary>
+    /// <summary>点卡片上的「编辑」：把这台的五个字段填进弹卡。</summary>
     public void OpenEditDevice(DeviceCardItem item)
     {
+        _editDeviceKey = item.Server;
         EditDeviceName = item.Name;
-        EditDeviceServer = item.Server;
+        EditDeviceDesc = item.Desc;
+        var (host, port) = SplitEndpoint(item.Server);
+        EditDeviceAddr = host;
+        EditDevicePort = port;
         EditDeviceToken = item.Token;
         IsEditDeviceOpen = true;
     }
 
+    /// <summary>编辑卡里保存：按原地址定位那一条，覆盖后重新探测。</summary>
+    public void SaveEditDevice()
+    {
+        var rec = new DeviceRecord
+        {
+            Name = EditDeviceName.Trim(),
+            Desc = EditDeviceDesc.Trim(),
+            Addr = AppConfig.NormalizeServer(EditDeviceAddr),
+            Port = ParsePort(EditDevicePort),
+            Token = EditDeviceToken.Trim(),
+        };
+        if (rec.Addr.Length == 0) rec.Addr = "127.0.0.1";
+
+        var i = _config.Devices.FindIndex(d =>
+            string.Equals(d.Endpoint, _editDeviceKey, StringComparison.OrdinalIgnoreCase));
+        if (i >= 0) _config.Devices[i] = rec;
+        else _config.Devices.Add(rec);
+        _config.Save();
+
+        IsEditDeviceOpen = false;
+        RebuildDeviceCards();
+        _ = ProbeDevicesAsync();
+    }
+
     public void CloseEditDevice() => IsEditDeviceOpen = false;
 
-    /// <summary>点左侧某一条：把它设为当前被控并回主页。真正切连接要等设备带上地址。</summary>
+    /// <summary>点卡片：把它设为当前被控并回主页。带了地址就真切过去并落盘。</summary>
     public void SwitchToDevice(DeviceCardItem item)
     {
         foreach (var c in DeviceCards)
@@ -738,6 +821,16 @@ public partial class MainViewModel : ViewModelBase
             else if (c.Tag == "当前被控") c.Tag = "未指定";
             c.IsCurrent = active;
         }
+
+        if (!string.IsNullOrWhiteSpace(item.Server))
+        {
+            _config.Server = item.Server;
+            _config.Token = item.Token;
+            EditServer = item.Server;
+            EditToken = item.Token;
+            _config.Save();
+        }
+
         DeviceNameText = item.Name;
         GoOverview();
     }

@@ -475,11 +475,32 @@
                             </Grid>
 
                             <StackPanel Spacing="6">
-                                <TextBlock Text="服务器地址" FontSize="13"
+                                <TextBlock Text="名称" FontSize="13"
                                            Foreground="{StaticResource TextDimBrush}" />
-                                <TextBox Text="{Binding NewDeviceServer}" PlaceholderText="留空 = 监视本机"
+                                <TextBox Text="{Binding NewDeviceName}" PlaceholderText="这台机器叫什么"
                                          FontSize="14" />
                             </StackPanel>
+
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="描述" FontSize="13"
+                                           Foreground="{StaticResource TextDimBrush}" />
+                                <TextBox Text="{Binding NewDeviceDesc}" PlaceholderText="备注，目前不显示"
+                                         FontSize="14" />
+                            </StackPanel>
+
+                            <Grid ColumnDefinitions="*,120" ColumnSpacing="12">
+                                <StackPanel Grid.Column="0" Spacing="6">
+                                    <TextBlock Text="地址" FontSize="13"
+                                               Foreground="{StaticResource TextDimBrush}" />
+                                    <TextBox Text="{Binding NewDeviceAddr}" PlaceholderText="留空 = 监视本机"
+                                             FontSize="14" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Spacing="6">
+                                    <TextBlock Text="端口" FontSize="13"
+                                               Foreground="{StaticResource TextDimBrush}" />
+                                    <TextBox Text="{Binding NewDevicePort}" FontSize="14" />
+                                </StackPanel>
+                            </Grid>
 
                             <StackPanel Spacing="6">
                                 <TextBlock Text="共享口令" FontSize="13"
@@ -565,11 +586,27 @@
                     </Grid>
 
                     <StackPanel Spacing="6">
-                        <TextBlock Text="服务器地址" FontSize="13"
-                                   Foreground="{StaticResource TextDimBrush}" />
-                        <TextBox Text="{Binding EditDeviceServer}" PlaceholderText="留空 = 监视本机"
-                                 FontSize="14" />
+                        <TextBlock Text="名称" FontSize="13" Foreground="{StaticResource TextDimBrush}" />
+                        <TextBox Text="{Binding EditDeviceName}" FontSize="14" />
                     </StackPanel>
+
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="描述" FontSize="13" Foreground="{StaticResource TextDimBrush}" />
+                        <TextBox Text="{Binding EditDeviceDesc}" FontSize="14" />
+                    </StackPanel>
+
+                    <Grid ColumnDefinitions="*,120" ColumnSpacing="12">
+                        <StackPanel Grid.Column="0" Spacing="6">
+                            <TextBlock Text="地址" FontSize="13"
+                                       Foreground="{StaticResource TextDimBrush}" />
+                            <TextBox Text="{Binding EditDeviceAddr}" FontSize="14" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Spacing="6">
+                            <TextBlock Text="端口" FontSize="13"
+                                       Foreground="{StaticResource TextDimBrush}" />
+                            <TextBox Text="{Binding EditDevicePort}" FontSize="14" />
+                        </StackPanel>
+                    </Grid>
 
                     <StackPanel Spacing="6">
                         <TextBlock Text="共享口令" FontSize="13"
@@ -577,9 +614,12 @@
                         <TextBox Text="{Binding EditDeviceToken}" PasswordChar="●" FontSize="14" />
                     </StackPanel>
 
-                    <Button Name="EditDeviceClose2Button" Content="关闭" Padding="24,10"
-                            HorizontalAlignment="Right" Background="{StaticResource Dark2Brush}"
-                            Foreground="White" CornerRadius="6" />
+                    <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
+                        <Button Name="EditDeviceClose2Button" Content="关闭" Padding="20,10" />
+                        <Button Name="EditDeviceSaveButton" Content="保存" Padding="24,10"
+                                Background="{StaticResource Dark2Brush}" Foreground="White"
+                                CornerRadius="6" />
+                    </StackPanel>
                 </StackPanel>
             </Border>
         </Border>
@@ -599,17 +639,8 @@
                         </Button>
                     </Grid>
 
-                    <StackPanel Spacing="6">
-                        <TextBlock Text="服务器地址" FontSize="13" Foreground="{StaticResource TextDimBrush}" />
-                        <TextBox Text="{Binding EditServer}" PlaceholderText="留空 = 监视本机" FontSize="14" />
-                        <TextBlock Text="{Binding ServerHint}"
-                                   FontSize="11" Foreground="{StaticResource TextDimBrush}" TextWrapping="Wrap" />
-                    </StackPanel>
-
-                    <StackPanel Spacing="6">
-                        <TextBlock Text="共享口令" FontSize="13" Foreground="{StaticResource TextDimBrush}" />
-                        <TextBox Text="{Binding EditToken}" PasswordChar="●" FontSize="14" />
-                    </StackPanel>
+                    <TextBlock Text="连接哪台设备改在「跨设备监控总览」里管理。" FontSize="12"
+                               Foreground="{StaticResource TextDimBrush}" TextWrapping="Wrap" />
 
                     <StackPanel Spacing="6">
                         <TextBlock Text="中心点云" FontSize="13" Foreground="{StaticResource TextDimBrush}" />

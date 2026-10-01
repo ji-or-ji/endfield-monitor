@@ -60,6 +60,9 @@ public partial class MainWindow : Window
         if (this.FindControl<Button>("EditDeviceClose2Button") is { } editClose2)
             editClose2.Click += (_, _) => (DataContext as MainViewModel)?.CloseEditDevice();
 
+        if (this.FindControl<Button>("EditDeviceSaveButton") is { } editSave)
+            editSave.Click += (_, _) => (DataContext as MainViewModel)?.SaveEditDevice();
+
         if (this.FindControl<Border>("EditDeviceOverlay") is { } editOverlay)
         {
             editOverlay.PointerPressed += (s, e) =>
