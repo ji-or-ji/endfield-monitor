@@ -61,6 +61,9 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] public partial string SourceText { get; set; } = "连接中…";
     [ObservableProperty] public partial string TargetText { get; set; } = "当前监控目标";
 
+    /// <summary>主页面左下角显示的设备名：优先用设备记录里的名称，没记录就退回主机名。</summary>
+    [ObservableProperty] public partial string CurrentDeviceName { get; set; } = "-";
+
     /// <summary>被控设备名（设备页左半边那行大字）。</summary>
     [ObservableProperty] public partial string DeviceNameText { get; set; } = "-";
     [ObservableProperty] public partial bool IsLive { get; set; }
@@ -313,6 +316,12 @@ public partial class MainViewModel : ViewModelBase
             }
             TargetText = target;
             DeviceNameText = s.Server.Host ?? "服务器";
+
+            var endpoint = AppConfig.NormalizeServer(_config.Server);
+            var rec = _config.Devices.Find(d =>
+                string.Equals(d.Endpoint, endpoint, StringComparison.OrdinalIgnoreCase));
+            CurrentDeviceName = rec is not null ? rec.Label : (s.Server.Host ?? "服务器");
+
             RebuildDeviceCards();
         }
 
@@ -653,6 +662,7 @@ public partial class MainViewModel : ViewModelBase
         LastRefreshText = "-";
         TargetText = "-";
         DeviceNameText = "-";
+        CurrentDeviceName = "-";
         RebuildDeviceCards();
 
         Array.Clear(_cpuHist, 0, _cpuHist.Length);
