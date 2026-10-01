@@ -14,7 +14,7 @@
     <!-- 设备页每一条：左边描述文字，右边卡片条，两者同处一条，所以天然一起上下 -->
     <Window.Resources>
         <DataTemplate x:Key="DeviceCardRow" x:DataType="vm:DeviceCardItem">
-            <Grid ColumnDefinitions="52*,48*">
+            <Grid ColumnDefinitions="40*,60*">
                 <!-- 左：设备名 + 装饰药丸。名字在固定宽度里右对齐，右边留同一个间隙接药丸：
                      这样名字右端与药丸左端各成一条竖线，字与药丸的距离处处一致 -->
                 <Grid Grid.Column="0" ColumnDefinitions="165,12,38" VerticalAlignment="Center"
