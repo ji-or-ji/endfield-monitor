@@ -73,6 +73,23 @@ public partial class MainViewModel : ViewModelBase
 
     /// <summary>底栏只在综合占用与设备性能两页显示，设备页收起。</summary>
     [ObservableProperty] public partial bool IsBottomBarVisible { get; set; } = true;
+
+    /// <summary>设备卡片三台及以上时改成滚动列表。</summary>
+    [ObservableProperty] public partial bool IsDeviceListScroll { get; set; }
+
+    /// <summary>只有一台：卡片跨满三行，中心落在 1/2。</summary>
+    [ObservableProperty] public partial bool IsSingleDevice { get; set; } = true;
+
+    /// <summary>正好两台：两条各占两行，中心落在 1/3 与 2/3。</summary>
+    [ObservableProperty] public partial bool HasTwoDevices { get; set; }
+
+    /// <summary>第一、二条卡片。一台/两台时按固定行位摆，不走列表。</summary>
+    [ObservableProperty] public partial DeviceCardItem? CardA { get; set; }
+
+    [ObservableProperty] public partial DeviceCardItem? CardB { get; set; }
+
+    /// <summary>三台及以上时的滚动列表数据。</summary>
+    public ObservableCollection<DeviceCardItem> DeviceCards { get; } = new();
     [ObservableProperty] public partial bool IsDetailOpen { get; set; }
     [ObservableProperty] public partial bool IsSettingsOpen { get; set; }
     [ObservableProperty] public partial string EditServer { get; set; } = "";
@@ -257,6 +274,7 @@ public partial class MainViewModel : ViewModelBase
             }
             TargetText = target;
             DeviceNameText = s.Server.Host ?? "服务器";
+            RebuildDeviceCards();
         }
 
         var sec = (int)(DateTime.Now - _lastRefresh).TotalSeconds;
@@ -596,6 +614,7 @@ public partial class MainViewModel : ViewModelBase
         LastRefreshText = "-";
         TargetText = "-";
         DeviceNameText = "-";
+        RebuildDeviceCards();
 
         Array.Clear(_cpuHist, 0, _cpuHist.Length);
         Array.Clear(_memHist, 0, _memHist.Length);
@@ -669,6 +688,30 @@ public partial class MainViewModel : ViewModelBase
     public void GoOverview() { IsOverviewPage = true; IsPerfPage = false; IsDevicePage = false; IsBottomBarVisible = true; }
     public void GoPerf() { IsOverviewPage = false; IsPerfPage = true; IsDevicePage = false; IsBottomBarVisible = true; }
     public void GoDevicePage() { IsOverviewPage = false; IsPerfPage = false; IsDevicePage = true; IsBottomBarVisible = false; }
+
+    /// <summary>
+    /// 重建设备卡片：第一张是当前被控目标，其余台数由开发钩子 ENF_DEVICES 决定。
+    /// 一台跨满三行（中心 1/2），两台各占两行（中心 1/3 与 2/3），三台及以上走滚动列表。
+    /// </summary>
+    private void RebuildDeviceCards()
+    {
+        var raw = Environment.GetEnvironmentVariable("ENF_DEVICES");
+        var n = int.TryParse(raw, out var v) && v > 1 ? v : 1;
+
+        DeviceCards.Clear();
+        for (var i = 0; i < n; i++)
+        {
+            DeviceCards.Add(i == 0
+                ? new DeviceCardItem { Name = DeviceNameText, Tag = "当前被控", IsCurrent = true }
+                : new DeviceCardItem { Name = "设备 " + (i + 1), Tag = "未指定" });
+        }
+
+        CardA = DeviceCards[0];
+        CardB = n >= 2 ? DeviceCards[1] : null;
+        IsSingleDevice = n == 1;
+        HasTwoDevices = n == 2;
+        IsDeviceListScroll = n >= 3;
+    }
 
     public void OpenDetail(DeviceRowViewModel d)
     {
