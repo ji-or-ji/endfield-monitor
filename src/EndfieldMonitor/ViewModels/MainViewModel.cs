@@ -210,6 +210,12 @@ public partial class MainViewModel : ViewModelBase
     // ---- 连接参数来自本地配置（可在设置里改）----
     private readonly AppConfig _config = AppConfig.Load();
     private readonly SnapshotClient _client = new();
+
+    /// <summary>探不到的那些地址。重建卡片时按它决定置不置灰（重建不该把探测结果抹掉）。</summary>
+    private readonly HashSet<string> _unreachable = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>上次建卡时的设备清单指纹。没变就不重建，免得每秒换一批对象。</summary>
+    private string _deviceSignature = "";
     private DateTime _lastLiveAt = DateTime.MinValue;
     private DateTime _lastRefresh = DateTime.Now;
     private string _deviceSig = "";
@@ -840,9 +846,27 @@ public partial class MainViewModel : ViewModelBase
     /// </summary>
     private void RebuildDeviceCards()
     {
+        var current = AppConfig.NormalizeServer(_config.Server);
+
+        var sig = current + "||" + DeviceNameText + "||";
+        foreach (var d in _config.Devices) sig += d.Endpoint + "|";
+
+        if (sig == _deviceSignature && DeviceCards.Count > 0)
+        {
+            // 清单没变：只刷新「当前被控」标记，对象不换，置灰过渡也不重启
+            foreach (var c in DeviceCards)
+            {
+                var isCurrent = string.Equals(c.Server, current, StringComparison.OrdinalIgnoreCase);
+                c.IsCurrent = isCurrent;
+                if (isCurrent) c.Tag = "当前被控";
+                else if (c.Tag == "当前被控") c.Tag = "未指定";
+            }
+            return;
+        }
+        _deviceSignature = sig;
+
         DeviceCards.Clear();
 
-        var current = AppConfig.NormalizeServer(_config.Server);
         foreach (var d in _config.Devices)
         {
             var isCurrent = string.Equals(d.Endpoint, current, StringComparison.OrdinalIgnoreCase);
@@ -854,6 +878,7 @@ public partial class MainViewModel : ViewModelBase
                 Server = d.Endpoint,
                 Token = d.Token,
                 Desc = d.Desc,
+                Reachable = !_unreachable.Contains(d.Endpoint),
             });
         }
 
@@ -884,17 +909,22 @@ public partial class MainViewModel : ViewModelBase
             // 没地址的那台（当前被控的占位）不去探，保持原样
             if (string.IsNullOrWhiteSpace(card.Server)) continue;
 
+            var ok = false;
             try
             {
                 using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromMilliseconds(800));
                 using var probe = new SnapshotClient { BaseUrl = "http://" + card.Server, Token = card.Token };
                 var snap = await probe.FetchAsync(cts.Token);
-                card.Reachable = snap is not null;
+                ok = snap is not null;
             }
             catch
             {
-                card.Reachable = false;
+                ok = false;
             }
+
+            if (ok) _unreachable.Remove(card.Server);
+            else _unreachable.Add(card.Server);
+            card.Reachable = ok;
         }
     }
 
