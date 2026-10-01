@@ -71,6 +71,14 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>页三：跨设备监控总览（底栏「切换被控」进来）。</summary>
     [ObservableProperty] public partial bool IsDevicePage { get; set; }
 
+    /// <summary>页四：新建被控（设备页右上角那个图标按钮进来）。</summary>
+    [ObservableProperty] public partial bool IsNewDevicePage { get; set; }
+
+    /// <summary>新建被控页里填的地址与口令。先跟着同一份配置走，以后改成设备列表。</summary>
+    [ObservableProperty] public partial string NewDeviceServer { get; set; } = "";
+
+    [ObservableProperty] public partial string NewDeviceToken { get; set; } = "";
+
     /// <summary>底栏只在综合占用与设备性能两页显示，设备页收起。</summary>
     [ObservableProperty] public partial bool IsBottomBarVisible { get; set; } = true;
 
@@ -685,9 +693,19 @@ public partial class MainViewModel : ViewModelBase
     }
 
     // ================= 交互 =================
-    public void GoOverview() { IsOverviewPage = true; IsPerfPage = false; IsDevicePage = false; IsBottomBarVisible = true; }
-    public void GoPerf() { IsOverviewPage = false; IsPerfPage = true; IsDevicePage = false; IsBottomBarVisible = true; }
-    public void GoDevicePage() { IsOverviewPage = false; IsPerfPage = false; IsDevicePage = true; IsBottomBarVisible = false; }
+    public void GoOverview() { IsOverviewPage = true; IsPerfPage = false; IsDevicePage = false; IsNewDevicePage = false; IsBottomBarVisible = true; }
+    public void GoPerf() { IsOverviewPage = false; IsPerfPage = true; IsDevicePage = false; IsNewDevicePage = false; IsBottomBarVisible = true; }
+    public void GoDevicePage() { IsOverviewPage = false; IsPerfPage = false; IsDevicePage = true; IsNewDevicePage = false; IsBottomBarVisible = false; }
+    public void GoNewDevicePage() { IsOverviewPage = false; IsPerfPage = false; IsDevicePage = false; IsNewDevicePage = true; IsBottomBarVisible = false; }
+
+    /// <summary>新建被控：现在只有地址与口令两栏，保存即切到这台。多设备留到设备列表做完。</summary>
+    public void SaveNewDevice()
+    {
+        EditServer = NewDeviceServer.Trim();
+        EditToken = NewDeviceToken.Trim();
+        SaveSettings();
+        GoDevicePage();
+    }
 
     /// <summary>
     /// 重建设备卡片：第一张是当前被控目标，其余台数由开发钩子 ENF_DEVICES 决定。

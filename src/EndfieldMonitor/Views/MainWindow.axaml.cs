@@ -53,6 +53,19 @@ public partial class MainWindow : Window
             };
         }
 
+        // ---- 新建被控（设备页右上角图标按钮进来） ----
+        if (this.FindControl<Button>("DeviceConfigButton") is { } deviceConfig)
+            deviceConfig.Click += (_, _) => (DataContext as MainViewModel)?.GoNewDevicePage();
+
+        if (this.FindControl<Button>("NewDeviceSaveButton") is { } newDeviceSave)
+            newDeviceSave.Click += (_, _) => (DataContext as MainViewModel)?.SaveNewDevice();
+
+        if (this.FindControl<Button>("NewDeviceCancelButton") is { } newDeviceCancel)
+            newDeviceCancel.Click += (_, _) => (DataContext as MainViewModel)?.GoDevicePage();
+
+        if (this.FindControl<Button>("NewDeviceBackButton") is { } newDeviceBack)
+            newDeviceBack.Click += (_, _) => (DataContext as MainViewModel)?.GoDevicePage();
+
         // ---- 跨设备监控总览（整页：底栏「切换被控」进，面板右上角的✕退回总览） ----
         if (this.FindControl<Button>("SwitchDeviceButton") is { } switchDevice)
             switchDevice.Click += (_, _) => (DataContext as MainViewModel)?.GoDevicePage();
