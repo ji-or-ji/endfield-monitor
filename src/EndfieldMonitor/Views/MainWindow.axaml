@@ -398,6 +398,18 @@
                                    FontSize="11" Foreground="{StaticResource TextDimBrush}" TextWrapping="Wrap" />
                     </StackPanel>
 
+                    <StackPanel Spacing="6">
+                        <CheckBox Content="启动时检查更新" IsChecked="{Binding EditAutoUpdate}" FontSize="13" />
+                        <TextBlock Text="检查要连 Gitee，默认关闭。套件版（同目录带着采集端）发现新版会自动下载，点一下替换并重启；分布部署只提示，不动对面机器上的采集端。"
+                                   FontSize="11" Foreground="{StaticResource TextDimBrush}" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding UpdateText}" IsVisible="{Binding ShowUpdate}"
+                                   FontSize="11" Foreground="{StaticResource BlueBrush}" TextWrapping="Wrap" />
+                        <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding ShowUpdate}">
+                            <Button Content="立即更新并重启" Command="{Binding ApplyUpdateCommand}" IsVisible="{Binding UpdateReady}" />
+                            <Button Content="打开发行版页面" Command="{Binding OpenReleasePageCommand}" IsVisible="{Binding HasNewer}" />
+                        </StackPanel>
+                    </StackPanel>
+
                     <TextBlock Text="口令需与服务端启动时的 --token 一致；填错只会停在「离线」。"
                                FontSize="11" Foreground="{StaticResource TextDimBrush}" TextWrapping="Wrap" />
 
