@@ -82,6 +82,19 @@ public static class SelfUpdate
         }
         catch (Exception ex)
         {
+            // 把没下完的包删掉：不然下次会把它当成已有文件，换一个坏包上去。
+            // 只扫 .update 目录下的 zip，不会碰到别处。
+            try
+            {
+                foreach (var stale in Directory.GetFiles(UpdateDir, "*.zip"))
+                {
+                    File.Delete(stale);
+                }
+            }
+            catch
+            {
+                // 清不掉也不影响：下次下载会覆盖同名文件
+            }
             say?.Report("下载失败：" + ex.Message);
             return null;
         }
