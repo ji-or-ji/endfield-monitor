@@ -442,6 +442,45 @@
                                         ContentTemplate="{StaticResource DeviceCardRow}" />
                     </Grid>
 
+                    <!-- 页四：新建被控（设备页右上角那个图标按钮进来）。地址与口令从设置页那边拆过来 -->
+                    <Grid Grid.Row="0" IsVisible="{Binding IsNewDevicePage}" ColumnDefinitions="40*,60*"
+                          RowDefinitions="*,*,*">
+                        <StackPanel Grid.Column="1" Grid.RowSpan="3" Width="520"
+                                    HorizontalAlignment="Left" VerticalAlignment="Center"
+                                    Margin="40,0,0,0" Spacing="16">
+                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                <Button Grid.Column="0" Classes="round" Name="NewDeviceBackButton"
+                                        Width="34" Height="34" CornerRadius="17" ToolTip.Tip="返回总览">
+                                    <Path Data="M5.2 5.2L18.8 18.8 M18.8 5.2L5.2 18.8"
+                                          Stroke="#B0B0AB" StrokeThickness="2.6" Width="14" Height="14"
+                                          Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Button>
+                                <TextBlock Grid.Column="1" Text="新建被控" FontSize="17" LetterSpacing="3"
+                                           Foreground="#4C4C48" VerticalAlignment="Center" Margin="10,0,0,0" />
+                            </Grid>
+
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="服务器地址" FontSize="13"
+                                           Foreground="{StaticResource TextDimBrush}" />
+                                <TextBox Text="{Binding NewDeviceServer}" PlaceholderText="留空 = 监视本机"
+                                         FontSize="14" />
+                            </StackPanel>
+
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="共享口令" FontSize="13"
+                                           Foreground="{StaticResource TextDimBrush}" />
+                                <TextBox Text="{Binding NewDeviceToken}" PasswordChar="●" FontSize="14" />
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
+                                <Button Name="NewDeviceCancelButton" Content="取消" Padding="20,10" />
+                                <Button Name="NewDeviceSaveButton" Content="保存并连接" Padding="24,10"
+                                        Background="{StaticResource Dark2Brush}" Foreground="White"
+                                        CornerRadius="6" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+
                     <!-- 底栏：左下数值不动，中间圆形刷新，右下两个黑按钮 -->
                     <Border Grid.Row="1" IsVisible="{Binding IsBottomBarVisible}"
                             Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource LineBrush}"
