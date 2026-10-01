@@ -15,17 +15,18 @@
     <Window.Resources>
         <DataTemplate x:Key="DeviceCardRow" x:DataType="vm:DeviceCardItem">
             <Grid ColumnDefinitions="52*,48*">
-                <!-- 左：设备名，右侧跟一个黑色药丸装饰。文字按药丸的纵向中心对，
-                     下移几像素抹平行高带来的视觉偏差 -->
-                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="14"
-                            VerticalAlignment="Center" Margin="40,0,24,0">
-                    <TextBlock Text="{Binding Name}" FontSize="24" LetterSpacing="1"
+                <!-- 左：设备名 + 装饰药丸。名字占固定宽度的一列，药丸跟在后面，
+                     这样几条卡片的药丸会落在同一条竖线上（名字短了也不会往前飘） -->
+                <Grid Grid.Column="0" ColumnDefinitions="190,46" VerticalAlignment="Center"
+                      Margin="40,0,24,0">
+                    <TextBlock Grid.Column="0" Text="{Binding Name}" FontSize="24" LetterSpacing="1"
                                VerticalAlignment="Center" Margin="0,3,0,0"
+                               TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
                                Foreground="{StaticResource TextBrush}" />
-                    <Border Width="46" Height="18" CornerRadius="9" VerticalAlignment="Center"
-                            Margin="0,4,0,0"
+                    <Border Grid.Column="1" Width="46" Height="18" CornerRadius="9"
+                            VerticalAlignment="Center" Margin="0,4,0,0"
                             Background="{StaticResource DarkBrush}" />
-                </StackPanel>
+                </Grid>
 
                 <Border Grid.Column="1" Margin="0,8,40,8" Padding="18,14" VerticalAlignment="Center"
                         Background="#F1F1EE" BorderBrush="{StaticResource LineBrush}"
