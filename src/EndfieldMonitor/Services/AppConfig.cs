@@ -20,6 +20,9 @@ public sealed class AppConfig
     /// <summary>点云是否用一次性 DrawVertices 批量提交（走 GPU 顶点）。关掉则回退逐点路径。</summary>
     [JsonPropertyName("batchCloud")] public bool BatchCloud { get; set; } = true;
 
+    /// <summary>启动时检查更新，默认关：检查要连 Gitee，不是每个使用环境都有外网。</summary>
+    [JsonPropertyName("autoUpdate")] public bool AutoUpdate { get; set; }
+
     /// <summary>CPU / 内存是否显示具体数值（频率、GB），而不是占用百分比。</summary>
     [JsonPropertyName("showAbsolute")] public bool ShowAbsolute { get; set; }
 

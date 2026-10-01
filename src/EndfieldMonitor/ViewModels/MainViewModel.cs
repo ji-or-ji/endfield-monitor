@@ -8,6 +8,7 @@ using System.Net.Sockets;
 using System.Threading.Tasks;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using EndfieldMonitor.Models;
 using EndfieldMonitor.Services;
 using EndfieldMonitor.Utils;
@@ -116,6 +117,25 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>设置面板里的编辑值。</summary>
     [ObservableProperty] public partial bool EditShowAbsolute { get; set; }
 
+    /// <summary>设置面板里的编辑值：启动时是否检查更新。</summary>
+    [ObservableProperty] public partial bool EditAutoUpdate { get; set; }
+
+    /// <summary>检查更新的结果文字。空表示还没查过，那一块就不显示。</summary>
+    [ObservableProperty] public partial string UpdateText { get; set; } = "";
+
+    /// <summary>有检查结果或正在下载时，才显示更新那一块。</summary>
+    [ObservableProperty] public partial bool ShowUpdate { get; set; }
+
+    /// <summary>确实比本机新，才给发行版页面按钮。</summary>
+    [ObservableProperty] public partial bool HasNewer { get; set; }
+
+    /// <summary>新版已下载好，可以替换了。</summary>
+    [ObservableProperty] public partial bool UpdateReady { get; set; }
+
+    private string _releasePage = "";
+    private string? _downloaded;
+    private string _collectorVersion = "";
+
     /// <summary>环上右上角标（橘弧一侧）里的 CPU 读数。</summary>
     [ObservableProperty] public partial string ChipCpu { get; set; } = "-";
 
@@ -141,6 +161,8 @@ public partial class MainViewModel : ViewModelBase
         ClearToOffline();
 
         ApplyConfig();
+        // 开了开关就在启动时查一次；套件形态会自动把新版下下来
+        if (_config.AutoUpdate) _ = CheckUpdateAsync();
         if (!_config.Existed) OpenSettings();
 
         _ = PollLoop();
@@ -162,6 +184,8 @@ public partial class MainViewModel : ViewModelBase
                 // 识别对面是不是增强版（plus）：它会在快照里声明自己的动手指令。
                 // 增强模式的界面还没接，等对着真界面定下加在哪再动。
                 IsPlus = snap.Capabilities.Count > 0;
+                // 采集端自报的版本，用来判断分布部署时该更新哪一端
+                _collectorVersion = snap.Server?.CollectorVersion ?? "";
                 if (!IsLive)
                 {
                     IsLive = true;
@@ -639,6 +663,7 @@ public partial class MainViewModel : ViewModelBase
         EditParticleIndex = ModeToIndex(_config.ParticleMode);
         EditBatchCloud = _config.BatchCloud;
         EditShowAbsolute = _config.ShowAbsolute;
+        EditAutoUpdate = _config.AutoUpdate;
         IsSettingsOpen = true;
     }
 
@@ -652,7 +677,10 @@ public partial class MainViewModel : ViewModelBase
         _config.ParticleMode = IndexToMode(EditParticleIndex);
         _config.BatchCloud = EditBatchCloud;
         _config.ShowAbsolute = EditShowAbsolute;
+        _config.AutoUpdate = EditAutoUpdate;
         _config.Save();
+        // 刚打开开关就顺手查一次，不用等下次启动
+        if (_config.AutoUpdate) _ = CheckUpdateAsync();
         EditServer = _config.Server;
         ApplyConfig();
         IsSettingsOpen = false;
@@ -738,6 +766,103 @@ public partial class MainViewModel : ViewModelBase
     {
         var isExe = path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase);
         return OperatingSystem.IsWindows() ? isExe : !isExe;
+    }
+
+    /// <summary>
+    /// 检查更新。套件形态（同目录带着采集端）会自动下载，分布部署只提示：
+    /// 分布部署里采集端在别人机器上，替它做决定不合适。
+    /// </summary>
+    public async Task CheckUpdateAsync()
+    {
+        ShowUpdate = true;
+        HasNewer = false;
+        UpdateReady = false;
+        _downloaded = null;
+        UpdateText = "正在检查更新…";
+
+        var info = await UpdateChecker.FetchLatestAsync();
+        var mine = UpdateChecker.CurrentVersion;
+        if (info is null)
+        {
+            UpdateText = "检查更新失败：拿不到发行版信息（可能没有外网）。";
+            return;
+        }
+        _releasePage = info.PageUrl;
+
+        var clientOld = UpdateChecker.IsNewer(info.Version, mine);
+        var collectorOld = _collectorVersion.Length > 0 && UpdateChecker.IsNewer(info.Version, _collectorVersion);
+        if (!clientOld && !collectorOld)
+        {
+            UpdateText = _collectorVersion.Length > 0
+                ? $"已是最新（客户端 {mine}，采集端 {_collectorVersion}）。"
+                : $"已是最新（{mine}）。";
+            return;
+        }
+        HasNewer = true;
+
+        var who = string.Join("、", new[] { clientOld ? "客户端" : null, collectorOld ? "采集端" : null }
+            .Where(x => x is not null));
+
+        if (FindBundledCollector() is null)
+        {
+            UpdateText = $"发现新版本 {info.Tag}：{who}可以更新。分布部署只作提示，请到发行版页面自行更新。";
+            return;
+        }
+
+        UpdateText = $"发现新版本 {info.Tag}（{who}）：准备下载…";
+        var dir = await SelfUpdate.DownloadAsync(info, new Progress<string>(s => UpdateText = s));
+        if (dir is null)
+        {
+            return; // 失败原因已经写在 UpdateText 里
+        }
+        _downloaded = dir;
+        UpdateReady = true;
+        UpdateText = $"新版本 {info.Tag} 已下载好。点「立即更新」会关闭程序、替换文件并自动重启。";
+    }
+
+    /// <summary>把下好的新版换上去：写一段替换脚本、启动它，然后本程序退出。</summary>
+    [RelayCommand]
+    private void ApplyUpdate()
+    {
+        if (_downloaded is null)
+        {
+            return;
+        }
+        var dir = AppContext.BaseDirectory;
+        var olds = Directory.GetFiles(dir, "EndfieldMonitor-*")
+            .Concat(Directory.GetFiles(dir, "enf-collector*"))
+            .Where(f => !f.EndsWith(".bak", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        if (olds.Count == 0)
+        {
+            UpdateText = "找不到当前版本的文件，无法替换。";
+            return;
+        }
+        if (!SelfUpdate.Apply(_downloaded, olds))
+        {
+            UpdateText = "启动替换脚本失败，可以手动把 .update 里的文件覆盖过来。";
+            return;
+        }
+        // 脚本正等着这个进程退出
+        (Avalonia.Application.Current?.ApplicationLifetime as Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime)?.Shutdown();
+    }
+
+    /// <summary>打开发行版页面。</summary>
+    [RelayCommand]
+    private void OpenReleasePage()
+    {
+        if (_releasePage.Length == 0)
+        {
+            return;
+        }
+        try
+        {
+            Process.Start(new ProcessStartInfo(_releasePage) { UseShellExecute = true });
+        }
+        catch
+        {
+            // 打不开就算了
+        }
     }
 
     private void ApplyConfig()

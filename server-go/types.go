@@ -108,6 +108,9 @@ type ServerInfo struct {
 	UptimeHours float64      `json:"uptime_hours"`
 	Service     *ServiceInfo `json:"service"`
 
+	// 采集端自己的版本号，构建时注入。分布部署时客户端靠它判断该更新哪一端。
+	CollectorVersion string `json:"collector_version,omitempty"`
+
 	// 增强版动过手的记录，最近几十条。只读模式与没动过手时都不出现。
 	Audit []AuditEntry `json:"audit,omitempty"`
 }

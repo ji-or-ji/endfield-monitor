@@ -3,6 +3,8 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
+    <!-- 本地直接 build 时用 0.0.0，明确不是发行版；打包时由 build.ps1 传 -p:Version= 覆盖 -->
+    <Version Condition="'$(Version)' == ''">0.0.0</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
 

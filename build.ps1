@@ -58,6 +58,7 @@ if (-not $Version) {
     if (-not $Version) { throw '仓库里没有 tag，请用 -Version 指定版本号' }
 }
 if ($Version -notmatch '^v') { $Version = "v$Version" }
+$verNum = $Version.TrimStart('v')   # 程序里嵌的版本号不带 v
 
 Write-Host "构建 $Version -> $dist" -ForegroundColor Cyan
 
@@ -77,6 +78,7 @@ foreach ($t in $targets) {
     & $dotnetExe publish $clientProj -c Release -r $t.Rid --self-contained true `
         -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
         -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false `
+        -p:Version=$verNum -p:InformationalVersion=$verNum `
         -o $tmp --nologo -v q
     if ($LASTEXITCODE -ne 0) { throw "客户端 $($t.Rid) 构建失败" }
     $src = Join-Path $tmp "EndfieldMonitor$($t.Ext)"
@@ -94,7 +96,7 @@ try {
         foreach ($v in @(@{ Tag = ''; Name = 'enf-collector' }, @{ Tag = 'plus'; Name = 'enf-collector-plus' })) {
             Write-Host "  $($v.Name) $($t.Os)-$($t.Arch) ..." -ForegroundColor DarkGray
             $out = Join-Path $dist "$($v.Name)-$Version-$($t.Os)-$($t.Arch)$($t.Ext)"
-            $goArgs = @('-ldflags', '-s -w', '-o', $out)
+            $goArgs = @('-ldflags', "-s -w -X main.version=$verNum", '-o', $out)
             if ($v.Tag) { $goArgs = @('-tags', $v.Tag) + $goArgs }
             & $goExe build @goArgs .
             if ($LASTEXITCODE -ne 0) { throw "$($v.Name) $($t.Os)-$($t.Arch) 构建失败" }

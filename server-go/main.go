@@ -156,6 +156,7 @@ func main() {
 	} else {
 		fmt.Println("[collector] 采样模式: 主要（始终按固定节拍）")
 	}
+	fmt.Printf("[collector] 版本: %s\n", version)
 
 	if plusBuild {
 		fmt.Println("[collector] 版本: 增强版（plus），提供启停应用与取图标")
@@ -573,9 +574,10 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 func readServer(svc *ServiceInfo, tasks []TaskInfo) *ServerInfo {
 	up, _ := host.Uptime()
 	srv := &ServerInfo{
-		Host:        static.Host,
-		UptimeHours: float64(up) / 3600.0,
-		Audit:       recentAudit(),
+		Host:             static.Host,
+		UptimeHours:      float64(up) / 3600.0,
+		CollectorVersion: version,
+		Audit:            recentAudit(),
 	}
 	if svc != nil {
 		// 复制一份再挂任务，避免改动 procLoop 正在维护的缓存对象

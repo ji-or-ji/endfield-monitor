@@ -107,6 +107,9 @@ public sealed class ServerInfo
 {
     [JsonPropertyName("host")]         public string? Host { get; set; }
     [JsonPropertyName("uptime_hours")] public double UptimeHours { get; set; }
+
+    /// <summary>采集端自报的版本号。分布部署时靠它判断该更新哪一端。</summary>
+    [JsonPropertyName("collector_version")] public string? CollectorVersion { get; set; }
     [JsonPropertyName("service")]      public ServiceInfo? Service { get; set; }
 }
 
