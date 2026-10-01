@@ -835,7 +835,7 @@ public partial class MainViewModel : ViewModelBase
         _config.Save();
     }
 
-    /// <summary>把某台设为当前连接，并落盘。</summary>
+    /// <summary>把某台设为当前连接，并落盘；新地址要同时交给正在用的请求对象。</summary>
     private void ApplyDevice(DeviceRecord rec)
     {
         _config.Server = rec.Endpoint;
@@ -843,6 +843,10 @@ public partial class MainViewModel : ViewModelBase
         EditServer = rec.Endpoint;
         EditToken = rec.Token;
         _config.Save();
+
+        // 只落盘不够：界面换了、数据仍会从老地址拿。得把新地址交给正在跑的那个客户端
+        _client.BaseUrl = "http://" + rec.Endpoint;
+        _client.Token = rec.Token;
     }
 
     private static int ParsePort(string? raw) =>
@@ -917,6 +921,10 @@ public partial class MainViewModel : ViewModelBase
             EditServer = item.Server;
             EditToken = item.Token;
             _config.Save();
+
+            // 同上：落盘之外还要真的换掉请求目标
+            _client.BaseUrl = "http://" + item.Server;
+            _client.Token = item.Token;
         }
 
         DeviceNameText = item.Name;
