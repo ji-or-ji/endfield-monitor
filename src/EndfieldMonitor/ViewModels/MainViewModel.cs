@@ -87,6 +87,9 @@ public partial class MainViewModel : ViewModelBase
 
     [ObservableProperty] public partial string EditDeviceToken { get; set; } = "";
 
+    /// <summary>新建/编辑卡里的校验提示。空串表示没问题。</summary>
+    [ObservableProperty] public partial string DeviceFormError { get; set; } = "";
+
     /// <summary>正在编辑的那条记录的原始地址，保存时用它定位要覆盖的那条。</summary>
     private string _editDeviceKey = "";
 
@@ -726,22 +729,88 @@ public partial class MainViewModel : ViewModelBase
     public void GoDevicePage() { IsOverviewPage = false; IsPerfPage = false; IsDevicePage = true; IsNewDevicePage = false; IsBottomBarVisible = false; _ = ProbeDevicesAsync(); }
     public void GoNewDevicePage() { IsOverviewPage = false; IsPerfPage = false; IsDevicePage = false; IsNewDevicePage = true; IsBottomBarVisible = false; }
 
-    /// <summary>新建被控：把五栏写成一条记录存进配置，并切到这一台。</summary>
+    /// <summary>新建被控：五栏先过一遍检查，过了才写成记录（不再顺手切连接）。</summary>
     public void SaveNewDevice()
     {
+        var err = CleanHostField(NewDeviceAddr, out var host, out var portFromHost);
+        var errPort = CleanPortField(portFromHost ?? NewDevicePort, out var port);
+        if (err.Length == 0) err = errPort;
+        if (err.Length > 0) { DeviceFormError = err; return; }
+
         var rec = new DeviceRecord
         {
             Name = NewDeviceName.Trim(),
             Desc = NewDeviceDesc.Trim(),
-            Addr = AppConfig.NormalizeServer(NewDeviceAddr),
-            Port = ParsePort(NewDevicePort),
+            Addr = host.Length == 0 ? "127.0.0.1" : host,   // 地址留空 = 监视本机
+            Port = port,
             Token = NewDeviceToken.Trim(),
         };
-        // 地址留空 = 监视本机
-        if (rec.Addr.Length == 0) rec.Addr = "127.0.0.1";
 
+        DeviceFormError = "";
         UpsertDevice(rec);
         GoDevicePage();
+    }
+
+    /// <summary>把 host:port 拆开；没写端口就回默认。地址则可能是空的。</summary>
+    private static (string Host, string Port) SplitEndpoint(string? endpoint)
+    {
+        var s = (endpoint ?? "").Trim();
+        var i = s.LastIndexOf(':');
+        if (i > 0 && int.TryParse(s[(i + 1)..], out var p)) return (s[..i], p.ToString());
+        return (s, "8898");
+    }
+
+    /// <summary>
+    /// 地址栏的整理与检查：剥掉 http(s):// 前缀与路径尾巴，再把误粘进来的 :端口 摘出去
+    /// （端口自成一栏，不摘就会拼成 host:8898:8898）。
+    /// 全是数字与点号的当 IP 看，必须四段、每段 0-255——"22"、"191.981" 这类都是拄错了。
+    /// 返回提示文字，空串表示没问题。
+    /// </summary>
+    private static string CleanHostField(string? raw, out string host, out string? portInHost)
+    {
+        host = AppConfig.NormalizeServer(raw);
+        portInHost = null;
+
+        var i = host.LastIndexOf(':');
+        if (i > 0 && int.TryParse(host[(i + 1)..], out var p) && p > 0 && p <= 65535)
+        {
+            portInHost = p.ToString();
+            host = host[..i];
+        }
+
+        if (host.Length == 0) return "";   // 留空 = 监视本机
+
+        var allDigitsAndDots = true;
+        foreach (var c in host)
+            if (!char.IsDigit(c) && c != '.') { allDigitsAndDots = false; break; }
+
+        if (allDigitsAndDots)
+        {
+            var parts = host.Split('.');
+            var bad = parts.Length != 4;
+            if (!bad)
+                foreach (var x in parts)
+                    if (x.Length == 0 || x.Length > 3 || !int.TryParse(x, out var v) || v > 255) { bad = true; break; }
+            if (bad) return "地址不像 IP：要四段、每段 0-255（例如 192.168.1.10）。只看本机就留空。";
+        }
+        else
+        {
+            foreach (var c in host)
+                if (!char.IsLetterOrDigit(c) && c != '.' && c != '-') return "地址里有不认得的字符：主机名只能含字母、数字、点、连字符。";
+        }
+
+        return "";
+    }
+
+    /// <summary>端口栏的检查。留空则用默认 8898。</summary>
+    private static string CleanPortField(string? raw, out int port)
+    {
+        port = 8898;
+        var s = (raw ?? "").Trim();
+        if (s.Length == 0) return "";
+        if (!int.TryParse(s, out var p) || p < 1 || p > 65535) return "端口要在 1-65535 之间。";
+        port = p;
+        return "";
     }
 
     /// <summary>按地址端口去重写进配置（同一个地址就覆盖那一条）。</summary>
@@ -767,15 +836,6 @@ public partial class MainViewModel : ViewModelBase
     private static int ParsePort(string? raw) =>
         int.TryParse(raw?.Trim(), out var p) && p > 0 && p <= 65535 ? p : 8898;
 
-    /// <summary>把 host:port 拆开；没写端口就回默认。地址则可能是空的。</summary>
-    private static (string Host, string Port) SplitEndpoint(string? endpoint)
-    {
-        var s = (endpoint ?? "").Trim();
-        var i = s.LastIndexOf(':');
-        if (i > 0 && int.TryParse(s[(i + 1)..], out var p)) return (s[..i], p.ToString());
-        return (s, "8898");
-    }
-
     /// <summary>
     /// <summary>点卡片上的「编辑」：把这台的五个字段填进弹卡。</summary>
     public void OpenEditDevice(DeviceCardItem item)
@@ -790,19 +850,24 @@ public partial class MainViewModel : ViewModelBase
         IsEditDeviceOpen = true;
     }
 
-    /// <summary>编辑卡里保存：按原地址定位那一条，覆盖后重新探测。</summary>
+    /// <summary>编辑卡里保存：先过检查，按原地址定位那一条覆盖，随后重探。</summary>
     public void SaveEditDevice()
     {
+        var err = CleanHostField(EditDeviceAddr, out var host, out var portFromHost);
+        var errPort = CleanPortField(portFromHost ?? EditDevicePort, out var port);
+        if (err.Length == 0) err = errPort;
+        if (err.Length > 0) { DeviceFormError = err; return; }
+
         var rec = new DeviceRecord
         {
             Name = EditDeviceName.Trim(),
             Desc = EditDeviceDesc.Trim(),
-            Addr = AppConfig.NormalizeServer(EditDeviceAddr),
-            Port = ParsePort(EditDevicePort),
+            Addr = host.Length == 0 ? "127.0.0.1" : host,
+            Port = port,
             Token = EditDeviceToken.Trim(),
         };
-        if (rec.Addr.Length == 0) rec.Addr = "127.0.0.1";
 
+        DeviceFormError = "";
         var i = _config.Devices.FindIndex(d =>
             string.Equals(d.Endpoint, _editDeviceKey, StringComparison.OrdinalIgnoreCase));
         if (i >= 0) _config.Devices[i] = rec;

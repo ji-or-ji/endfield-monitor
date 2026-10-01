@@ -508,6 +508,9 @@
                                 <TextBox Text="{Binding NewDeviceToken}" PasswordChar="●" FontSize="14" />
                             </StackPanel>
 
+                            <TextBlock Text="{Binding DeviceFormError}" FontSize="12" Foreground="#C0564A"
+                                       TextWrapping="Wrap" />
+
                             <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
                                 <Button Name="NewDeviceCancelButton" Content="取消" Padding="20,10" />
                                 <Button Name="NewDeviceSaveButton" Content="保存并连接" Padding="24,10"
@@ -613,6 +616,9 @@
                                    Foreground="{StaticResource TextDimBrush}" />
                         <TextBox Text="{Binding EditDeviceToken}" PasswordChar="●" FontSize="14" />
                     </StackPanel>
+
+                    <TextBlock Text="{Binding DeviceFormError}" FontSize="12" Foreground="#C0564A"
+                               TextWrapping="Wrap" />
 
                     <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
                         <Button Name="EditDeviceClose2Button" Content="关闭" Padding="20,10" />
