@@ -376,12 +376,21 @@
                             </Button>
                         </StackPanel>
 
-                        <!-- 三条以上：改成滚动列表。上面留出标题那一行的高度，不然会被第一条压住 -->
+                        <!-- 三条以上：改成滚动列表。纵向居中（装不下才滚），上面留出标题那一行的高度 -->
                         <ScrollViewer Grid.RowSpan="3" Grid.ColumnSpan="2" Margin="0,64,0,0"
-                                      VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
                                       IsVisible="{Binding IsDeviceListScroll}">
-                            <ItemsControl ItemsSource="{Binding DeviceCards}"
-                                          ItemTemplate="{StaticResource DeviceCardRow}" />
+                            <!-- ScrollViewer 里内容按无限高测量，居中要在外面套一层撑满视口的容器 -->
+                            <Grid MinHeight="{Binding $parent[ScrollViewer].Bounds.Height}">
+                                <ItemsControl ItemsSource="{Binding DeviceCards}" VerticalAlignment="Center"
+                                              ItemTemplate="{StaticResource DeviceCardRow}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Spacing="26" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                </ItemsControl>
+                            </Grid>
                         </ScrollViewer>
 
                         <!-- 一台：跨满三行，中心落在 1/2 -->
