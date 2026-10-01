@@ -527,6 +527,8 @@
                         <Grid ColumnDefinitions="*,Auto,*">
                             <!-- 左：原来那三行数值，原样保留 -->
                             <StackPanel Grid.Column="0" Spacing="8" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding CurrentDeviceName}" FontSize="16" LetterSpacing="1"
+                                           Foreground="{StaticResource TextBrush}" />
                                 <StackPanel Orientation="Horizontal" Spacing="4">
                                     <TextBlock Text="上次数据刷新：" FontSize="13" Foreground="{StaticResource TextBrush}" />
                                     <TextBlock Text="{Binding LastRefreshText}" FontSize="13" Foreground="{StaticResource TextBrush}" />
