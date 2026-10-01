@@ -741,7 +741,6 @@ public partial class MainViewModel : ViewModelBase
         if (rec.Addr.Length == 0) rec.Addr = "127.0.0.1";
 
         UpsertDevice(rec);
-        ApplyDevice(rec);
         GoDevicePage();
     }
 
@@ -811,6 +810,12 @@ public partial class MainViewModel : ViewModelBase
         _config.Save();
 
         IsEditDeviceOpen = false;
+
+        // 改的正是当前连着的那台：把新地址接上去，否则改完还是连旧的（或者连不上的）
+        if (string.Equals(_editDeviceKey, AppConfig.NormalizeServer(_config.Server),
+                          StringComparison.OrdinalIgnoreCase))
+            ApplyDevice(rec);
+
         RebuildDeviceCards();
         _ = ProbeDevicesAsync();
     }
