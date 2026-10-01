@@ -328,18 +328,23 @@ $allReleases = Invoke-RestMethod -Uri "$giteeApi/releases?access_token=$giteeTok
 
 if ($Prune) {
     Write-Host '清理 Gitee 旧发行版（保留最近 2 版 + 本次）...' -ForegroundColor Yellow
-    # 取版本最高的两版：显式循环 + 数值比较，不走管道排序，行为是确定的。
+    # 取版本最高的两版（**把本次版本也算进去**）：显式循环 + 数值比较，
+    # 不走管道排序，行为是确定的。
+    # 别再把「本次版本」另并进保留集：那等于留三版（第一次跑就多留了一个 v0.4.1）。
+    $candidates = @()
+    foreach ($r in $allReleases) { $candidates += [string]$r.tag_name }
+    if ($candidates -notcontains $Version) { $candidates += $Version }
     $best1 = -1; $best2 = -1; $tag1 = ''; $tag2 = ''
-    foreach ($r in $allReleases) {
-        $s = Get-VersionScore $r.tag_name
+    foreach ($t in $candidates) {
+        $s = Get-VersionScore $t
         if ($s -lt 0) { continue }
         if ($s -gt $best1) {
-            $best2 = $best1; $tag2 = $tag1; $best1 = $s; $tag1 = [string]$r.tag_name
-        } elseif ($s -gt $best2) {
-            $best2 = $s; $tag2 = [string]$r.tag_name
+            $best2 = $best1; $tag2 = $tag1; $best1 = $s; $tag1 = $t
+        } elseif ($s -gt $best2 -and $s -ne $best1) {
+            $best2 = $s; $tag2 = $t
         }
     }
-    $keep = @($tag1, $tag2, $Version) | Where-Object { $_ -ne '' } | Select-Object -Unique
+    $keep = @($tag1, $tag2) | Where-Object { $_ -ne '' } | Select-Object -Unique
     Write-Host "  保留：$($keep -join '、')" -ForegroundColor DarkGray
     foreach ($r in $allReleases) {
         $tag = [string]$r.tag_name
