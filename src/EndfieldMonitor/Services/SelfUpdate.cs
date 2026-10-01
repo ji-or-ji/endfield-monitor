@@ -148,6 +148,8 @@ public static class SelfUpdate
         }
         foreach (var n in oldNames)
         {
+            // 只留一代备份：先清掉上一代的同名 .bak，再备份
+            backup += $"if exist \"%DIR%\\{n}.bak\" del /Q \"%DIR%\\{n}.bak\" >nul\r\n";
             backup += $"if exist \"%DIR%\\{n}\" copy /Y \"%DIR%\\{n}\" \"%DIR%\\{n}.bak\" >nul\r\n";
         }
         foreach (var n in oldNames)
@@ -174,6 +176,8 @@ public static class SelfUpdate
                clean +
                "rem 起新版客户端\r\n" +
                $"start \"\" \"%DIR%\\{clientNew}\"\r\n" +
+               "rem 收尾：清掉解压出来的那一份和脚本自己\r\n" +
+               $"rmdir /S /Q \"{newDir}\" 2>nul\r\n" +
                "del /Q \"%~f0\"\r\n";
     }
 
@@ -184,7 +188,7 @@ public static class SelfUpdate
             ? ""
             : $"pkill -f \"{dir}/{collectorOld}\" 2>/dev/null\r\nsleep 1\r\n";
         var backup = string.Join("", oldNames.Select(n =>
-            $"[ -f \"$DIR/{n}\" ] && cp -f \"$DIR/{n}\" \"$DIR/{n}.bak\"\r\n"));
+            $"rm -f \"$DIR/{n}.bak\"\r\n[ -f \"$DIR/{n}\" ] && cp -f \"$DIR/{n}\" \"$DIR/{n}.bak\"\r\n"));
         var clean = string.Join("", oldNames.Select(n => $"rm -f \"$DIR/{n}\"\r\n"));
 
         return "#!/bin/sh\r\n" +
@@ -198,6 +202,7 @@ public static class SelfUpdate
                clean +
                $"chmod +x \"$DIR\"/{clientNew} \"$DIR\"/enf-collector-* 2>/dev/null\r\n" +
                $"cd \"$DIR\" && nohup \"./{clientNew}\" >/dev/null 2>&1 &\r\n" +
+               $"rm -rf \"{newDir}\"\r\n" +
                "rm -f \"$0\"\r\n";
     }
 }
