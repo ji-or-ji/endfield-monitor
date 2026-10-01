@@ -70,6 +70,9 @@ public partial class MainViewModel : ViewModelBase
 
     /// <summary>页三：跨设备监控总览（底栏「切换被控」进来）。</summary>
     [ObservableProperty] public partial bool IsDevicePage { get; set; }
+
+    /// <summary>底栏只在综合占用与设备性能两页显示，设备页收起。</summary>
+    [ObservableProperty] public partial bool IsBottomBarVisible { get; set; } = true;
     [ObservableProperty] public partial bool IsDetailOpen { get; set; }
     [ObservableProperty] public partial bool IsSettingsOpen { get; set; }
     [ObservableProperty] public partial string EditServer { get; set; } = "";
@@ -663,9 +666,9 @@ public partial class MainViewModel : ViewModelBase
     }
 
     // ================= 交互 =================
-    public void GoOverview() { IsOverviewPage = true; IsPerfPage = false; IsDevicePage = false; }
-    public void GoPerf() { IsOverviewPage = false; IsPerfPage = true; IsDevicePage = false; }
-    public void GoDevicePage() { IsOverviewPage = false; IsPerfPage = false; IsDevicePage = true; }
+    public void GoOverview() { IsOverviewPage = true; IsPerfPage = false; IsDevicePage = false; IsBottomBarVisible = true; }
+    public void GoPerf() { IsOverviewPage = false; IsPerfPage = true; IsDevicePage = false; IsBottomBarVisible = true; }
+    public void GoDevicePage() { IsOverviewPage = false; IsPerfPage = false; IsDevicePage = true; IsBottomBarVisible = false; }
 
     public void OpenDetail(DeviceRowViewModel d)
     {

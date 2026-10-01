@@ -382,7 +382,8 @@
                     </Grid>
 
                     <!-- 底栏：左下数值不动，中间圆形刷新，右下两个黑按钮 -->
-                    <Border Grid.Row="1" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource LineBrush}"
+                    <Border Grid.Row="1" IsVisible="{Binding IsBottomBarVisible}"
+                            Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource LineBrush}"
                             BorderThickness="1" Padding="18,14" BoxShadow="0 2 8 0 #10000000">
                         <Grid ColumnDefinitions="*,Auto,*">
                             <!-- 左：原来那三行数值，原样保留 -->
