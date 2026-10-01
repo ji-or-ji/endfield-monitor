@@ -41,6 +41,15 @@ public sealed class AppConfig
     /// </summary>
     [JsonPropertyName("devices")] public List<DeviceRecord> Devices { get; set; } = new();
 
+    /// <summary>
+    /// 配置结构版本。老文件里没有这个字段，反序列化后是 0，据此判断要不要迁移。
+    /// 加字段或改语义时把它 +1，并在 Migrate 里补一条。
+    /// </summary>
+    [JsonPropertyName("configVersion")] public int ConfigVersion { get; set; }
+
+    /// <summary>当前结构版本。</summary>
+    public const int CurrentConfigVersion = 1;
+
     [JsonIgnore]
     public static string FilePath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -67,6 +76,43 @@ public sealed class AppConfig
         return s.Trim();
     }
 
+    /// <summary>把 host:port 拆成两截；没写端口就回默认 8898。</summary>
+    public static (string Host, int Port) SplitServer(string? endpoint)
+    {
+        var s = (endpoint ?? "").Trim();
+        var i = s.LastIndexOf(':');
+        if (i > 0 && int.TryParse(s[(i + 1)..], out var p) && p > 0 && p <= 65535)
+            return (s[..i], p);
+        return (s, 8898);
+    }
+
+    /// <summary>
+    /// 把老版本配置就地升级到当前结构，返回是否值得写回。
+    /// v0 -> v1：被控设备从单个 server/token 改成 devices 列表。先把老那一台搬进去，
+    /// 不让人升级上来还得重填一遍。地址留空（监视本机）也落成一条，新页面才有东西可点。
+    /// 老文件本来就有 devices 的（已经在用新版）不重复添，保证跑两次不会长出两条。
+    /// </summary>
+    private bool Migrate()
+    {
+        if (ConfigVersion >= CurrentConfigVersion) return false;
+
+        if (Devices.Count == 0)
+        {
+            var (host, port) = SplitServer(Server);
+            if (host.Length == 0) host = "127.0.0.1";
+            Devices.Add(new DeviceRecord
+            {
+                Name = host == "127.0.0.1" ? "本机" : host,
+                Addr = host,
+                Port = port,
+                Token = Token,
+            });
+        }
+
+        ConfigVersion = CurrentConfigVersion;
+        return true;
+    }
+
     public static AppConfig Load()
     {
         try
@@ -77,6 +123,7 @@ public sealed class AppConfig
                 if (cfg is not null)
                 {
                     cfg.Server = NormalizeServer(cfg.Server);
+                    if (cfg.Migrate()) cfg.Save();   // 老结构就地升级并立刻写回，下次启动不再重跑
                     cfg.Existed = true;
                     return cfg;
                 }
