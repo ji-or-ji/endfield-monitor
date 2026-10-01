@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -33,6 +34,12 @@ public sealed class AppConfig
 
     /// <summary>本次启动前是否已存在配置文件（用于决定要不要首次引导）。</summary>
     [JsonIgnore] public bool Existed { get; private set; }
+
+    /// <summary>
+    /// 已记录的被控设备。空表示还没配过，此时按老规矩用 Server / Token 顶一台。
+    /// 进「跨设备监控总览」时对这里每一台做一次连通探测。
+    /// </summary>
+    [JsonPropertyName("devices")] public List<DeviceRecord> Devices { get; set; } = new();
 
     [JsonIgnore]
     public static string FilePath => Path.Combine(
@@ -97,4 +104,23 @@ public sealed class AppConfig
             // 写不进去就只在内存里生效，不弹错打断使用
         }
     }
+}
+
+/// <summary>
+/// 一台被控设备的记录。地址与端口分开存（老写法是一个 host:port 串，
+/// 拆开以后端口好单独改）。描述暂时没有地方用，先存着。
+/// </summary>
+public sealed class DeviceRecord
+{
+    [JsonPropertyName("name")] public string Name { get; set; } = "";
+    [JsonPropertyName("desc")] public string Desc { get; set; } = "";
+    [JsonPropertyName("addr")] public string Addr { get; set; } = "";
+    [JsonPropertyName("port")] public int Port { get; set; } = 8898;
+    [JsonPropertyName("token")] public string Token { get; set; } = "";
+
+    /// <summary>拼成客户端要用的 host:port。端口没填就只回地址。</summary>
+    [JsonIgnore] public string Endpoint => Port > 0 ? $"{Addr}:{Port}" : Addr;
+
+    /// <summary>名称没写就退回地址，列表里总得有个能认的。</summary>
+    [JsonIgnore] public string Label => string.IsNullOrWhiteSpace(Name) ? (Addr.Length > 0 ? Addr : "未命名") : Name;
 }

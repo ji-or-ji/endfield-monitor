@@ -704,7 +704,7 @@ public partial class MainViewModel : ViewModelBase
     // ================= 交互 =================
     public void GoOverview() { IsOverviewPage = true; IsPerfPage = false; IsDevicePage = false; IsNewDevicePage = false; IsBottomBarVisible = true; }
     public void GoPerf() { IsOverviewPage = false; IsPerfPage = true; IsDevicePage = false; IsNewDevicePage = false; IsBottomBarVisible = true; }
-    public void GoDevicePage() { IsOverviewPage = false; IsPerfPage = false; IsDevicePage = true; IsNewDevicePage = false; IsBottomBarVisible = false; }
+    public void GoDevicePage() { IsOverviewPage = false; IsPerfPage = false; IsDevicePage = true; IsNewDevicePage = false; IsBottomBarVisible = false; _ = ProbeDevicesAsync(); }
     public void GoNewDevicePage() { IsOverviewPage = false; IsPerfPage = false; IsDevicePage = false; IsNewDevicePage = true; IsBottomBarVisible = false; }
 
     /// <summary>新建被控：现在只有地址与口令两栏，保存即切到这台。多设备留到设备列表做完。</summary>
@@ -747,22 +747,62 @@ public partial class MainViewModel : ViewModelBase
     /// </summary>
     private void RebuildDeviceCards()
     {
-        var raw = Environment.GetEnvironmentVariable("ENF_DEVICES");
-        var n = int.TryParse(raw, out var v) && v > 1 ? v : 1;
-
         DeviceCards.Clear();
-        for (var i = 0; i < n; i++)
+
+        var current = AppConfig.NormalizeServer(_config.Server);
+        foreach (var d in _config.Devices)
         {
-            DeviceCards.Add(i == 0
-                ? new DeviceCardItem { Name = DeviceNameText, Tag = "当前被控", IsCurrent = true }
-                : new DeviceCardItem { Name = "设备 " + (i + 1), Tag = "未指定" });
+            var isCurrent = string.Equals(d.Endpoint, current, StringComparison.OrdinalIgnoreCase);
+            DeviceCards.Add(new DeviceCardItem
+            {
+                Name = d.Label,
+                Tag = isCurrent ? "当前被控" : "未指定",
+                IsCurrent = isCurrent,
+                Server = d.Endpoint,
+                Token = d.Token,
+                Desc = d.Desc,
+            });
         }
 
+        if (DeviceCards.Count == 0)
+            DeviceCards.Add(new DeviceCardItem { Name = DeviceNameText, Tag = "当前被控", IsCurrent = true });
+
+        var raw = Environment.GetEnvironmentVariable("ENF_DEVICES");
+        var extra = int.TryParse(raw, out var v) && v > 0 ? v : 0;
+        for (var i = 0; i < extra; i++)
+            DeviceCards.Add(new DeviceCardItem { Name = "设备 " + (i + 1), Tag = "未指定", Reachable = false });
+
+        var n = DeviceCards.Count;
         CardA = DeviceCards[0];
         CardB = n >= 2 ? DeviceCards[1] : null;
         IsSingleDevice = n == 1;
         HasTwoDevices = n == 2;
         IsDeviceListScroll = n >= 3;
+    }
+
+    /// <summary>
+    /// 对每一台记录发一次短超时探测（800ms）。通不了就把 Reachable 置假，
+    /// 卡片会按 Border.card 的过渡缓动置灰。
+    /// </summary>
+    private async Task ProbeDevicesAsync()
+    {
+        foreach (var card in DeviceCards)
+        {
+            // 没地址的那台（当前被控的占位）不去探，保持原样
+            if (string.IsNullOrWhiteSpace(card.Server)) continue;
+
+            try
+            {
+                using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromMilliseconds(800));
+                using var probe = new SnapshotClient { BaseUrl = "http://" + card.Server, Token = card.Token };
+                var snap = await probe.FetchAsync(cts.Token);
+                card.Reachable = snap is not null;
+            }
+            catch
+            {
+                card.Reachable = false;
+            }
+        }
     }
 
     public void OpenDetail(DeviceRowViewModel d)
