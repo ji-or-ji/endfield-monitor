@@ -15,17 +15,14 @@
     <Window.Resources>
         <DataTemplate x:Key="DeviceCardRow" x:DataType="vm:DeviceCardItem">
             <Grid ColumnDefinitions="52*,48*">
-                <StackPanel Grid.Column="0" VerticalAlignment="Center" Spacing="10" Margin="40,0,24,0">
-                    <TextBlock Text="被控设备" FontSize="13" LetterSpacing="4"
-                               Foreground="{StaticResource TextDimBrush}" />
-                    <TextBlock Text="{Binding Name}" FontSize="36" LetterSpacing="1"
-                               Foreground="{StaticResource TextBrush}" />
-                </StackPanel>
+                <TextBlock Grid.Column="0" Text="{Binding Name}" FontSize="28" LetterSpacing="1"
+                           Margin="40,0,24,0" VerticalAlignment="Center"
+                           Foreground="{StaticResource TextBrush}" />
 
-                <Border Grid.Column="1" Margin="0,8,40,8" Padding="18,16" VerticalAlignment="Center"
+                <Border Grid.Column="1" Margin="0,8,40,8" Padding="18,14" VerticalAlignment="Center"
                         Background="#F1F1EE" BorderBrush="{StaticResource LineBrush}"
                         BorderThickness="1" CornerRadius="4" BoxShadow="0 2 8 0 #10000000">
-                    <Grid ColumnDefinitions="4,*,Auto">
+                    <Grid ColumnDefinitions="4,*,Auto,Auto">
                         <Border Grid.Column="0" Background="{StaticResource YellowBrush}" />
                         <StackPanel Grid.Column="1" Margin="16,0" Spacing="7" VerticalAlignment="Center">
                             <TextBlock Text="{Binding Name}" FontSize="15"
@@ -36,10 +33,20 @@
                                            Foreground="{StaticResource YellowBrush}" />
                             </Border>
                         </StackPanel>
-                        <Button Grid.Column="2" Margin="16,0,0,0" VerticalAlignment="Center"
-                                Background="{StaticResource Dark2Brush}" Foreground="White"
-                                CornerRadius="6" Padding="18,8">
-                            <TextBlock Text="编辑" FontSize="13" LetterSpacing="1" />
+
+                        <!-- 黑色药丸，纯装饰 -->
+                        <Border Grid.Column="2" Width="86" Height="34" CornerRadius="17" Margin="0,0,14,0"
+                                VerticalAlignment="Center" Background="{StaticResource DarkBrush}" />
+
+                        <!-- 编辑：参考图里是浅色药丸，前面带一个小圆点 -->
+                        <Button Grid.Column="3" VerticalAlignment="Center"
+                                Background="#ECECEA" BorderBrush="{StaticResource LineBrush}"
+                                BorderThickness="1" CornerRadius="17" Padding="14,7">
+                            <StackPanel Orientation="Horizontal" Spacing="7">
+                                <Ellipse Width="7" Height="7" Fill="#8A8A85" VerticalAlignment="Center" />
+                                <TextBlock Text="编辑" FontSize="13" LetterSpacing="1"
+                                           Foreground="#4C4C48" VerticalAlignment="Center" />
+                            </StackPanel>
                         </Button>
                     </Grid>
                 </Border>
@@ -386,7 +393,7 @@
                                               ItemTemplate="{StaticResource DeviceCardRow}">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
-                                            <StackPanel Spacing="26" />
+                                            <StackPanel Spacing="40" />
                                         </ItemsPanelTemplate>
                                     </ItemsControl.ItemsPanel>
                                 </ItemsControl>
