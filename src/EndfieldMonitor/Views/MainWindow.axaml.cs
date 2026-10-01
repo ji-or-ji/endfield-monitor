@@ -53,6 +53,22 @@ public partial class MainWindow : Window
             };
         }
 
+        // ---- 编辑设备（卡片上的「编辑」弹出） ----
+        if (this.FindControl<Button>("EditDeviceCloseButton") is { } editClose)
+            editClose.Click += (_, _) => (DataContext as MainViewModel)?.CloseEditDevice();
+
+        if (this.FindControl<Button>("EditDeviceClose2Button") is { } editClose2)
+            editClose2.Click += (_, _) => (DataContext as MainViewModel)?.CloseEditDevice();
+
+        if (this.FindControl<Border>("EditDeviceOverlay") is { } editOverlay)
+        {
+            editOverlay.PointerPressed += (s, e) =>
+            {
+                if (ReferenceEquals(e.Source, editOverlay))
+                    (DataContext as MainViewModel)?.CloseEditDevice();
+            };
+        }
+
         // ---- 新建被控（设备页右上角图标按钮进来） ----
         if (this.FindControl<Button>("DeviceConfigButton") is { } deviceConfig)
             deviceConfig.Click += (_, _) => (DataContext as MainViewModel)?.GoNewDevicePage();
@@ -104,8 +120,17 @@ public partial class MainWindow : Window
     /// <summary>点设备页那张卡：把被控切到它并回主页。卡片在数据模板里，只能走事件，不能 FindControl。</summary>
     private void OnDeviceCardPressed(object? sender, Avalonia.Input.PointerPressedEventArgs e)
     {
+        // 卡里的「编辑」自己有点击，别让卡片再抢一次（否则点编辑会顺带切了被控）
+        if (e.Source is Button) return;
         if (sender is Border { DataContext: DeviceCardItem item } && DataContext is MainViewModel vm)
             vm.SwitchToDevice(item);
+    }
+
+    /// <summary>点卡片上的「编辑」：弹出一张卡。</summary>
+    private void OnDeviceEditClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { DataContext: DeviceCardItem item } && DataContext is MainViewModel vm)
+            vm.OpenEditDevice(item);
     }
 
     private void OnNavOverview(object? sender, RoutedEventArgs e) => (DataContext as MainViewModel)?.GoOverview();
