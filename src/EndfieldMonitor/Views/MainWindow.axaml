@@ -15,18 +15,24 @@
     <Window.Resources>
         <DataTemplate x:Key="DeviceCardRow" x:DataType="vm:DeviceCardItem">
             <Grid ColumnDefinitions="40*,60*">
-                <!-- 左：设备名 + 装饰药丸。名字在固定宽度里右对齐，右边留同一个间隙接药丸：
+                <!-- 左：设备名 + 装饰药丸。整块是个按钮，点了就把被控切到这一台并回主页。
+                     名字在固定宽度里右对齐，右边留同一个间隙接药丸：
                      这样名字右端与药丸左端各成一条竖线，字与药丸的距离处处一致 -->
-                <Grid Grid.Column="0" ColumnDefinitions="165,12,38" VerticalAlignment="Center"
-                      Margin="20,0,24,0">
-                    <TextBlock Grid.Column="0" Text="{Binding Name}" FontSize="20" LetterSpacing="1"
-                               HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,3,0,0"
-                               TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
-                               Foreground="{StaticResource TextBrush}" />
-                    <Border Grid.Column="2" Width="38" Height="14" CornerRadius="7"
-                            VerticalAlignment="Center" Margin="0,4,0,0"
-                            Background="{StaticResource DarkBrush}" />
-                </Grid>
+                <Button Grid.Column="0" Click="OnDeviceCardClick" Background="Transparent"
+                        BorderThickness="0" Padding="0" Cursor="Hand"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                        VerticalAlignment="Center" ToolTip.Tip="切换被控到此设备">
+                    <Grid ColumnDefinitions="165,12,38" VerticalAlignment="Center"
+                          Margin="20,0,24,0">
+                        <TextBlock Grid.Column="0" Text="{Binding Name}" FontSize="20" LetterSpacing="1"
+                                   HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,3,0,0"
+                                   TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                                   Foreground="{StaticResource TextBrush}" />
+                        <Border Grid.Column="2" Width="38" Height="14" CornerRadius="7"
+                                VerticalAlignment="Center" Margin="0,4,0,0"
+                                Background="{StaticResource DarkBrush}" />
+                    </Grid>
+                </Button>
 
                 <!-- 外侧白框，内侧黑长条（对着参考图来的） -->
                 <Border Grid.Column="1" Margin="0,8,40,8" Height="150" VerticalAlignment="Center"

@@ -708,6 +708,20 @@ public partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// <summary>点左侧某一条：把它设为当前被控并回主页。真正切连接要等设备带上地址。</summary>
+    public void SwitchToDevice(DeviceCardItem item)
+    {
+        foreach (var c in DeviceCards)
+        {
+            var active = ReferenceEquals(c, item);
+            if (active) c.Tag = "当前被控";
+            else if (c.Tag == "当前被控") c.Tag = "未指定";
+            c.IsCurrent = active;
+        }
+        DeviceNameText = item.Name;
+        GoOverview();
+    }
+
     /// 重建设备卡片：第一张是当前被控目标，其余台数由开发钩子 ENF_DEVICES 决定。
     /// 一台跨满三行（中心 1/2），两台各占两行（中心 1/3 与 2/3），三台及以上走滚动列表。
     /// </summary>
