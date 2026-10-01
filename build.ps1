@@ -229,9 +229,21 @@ foreach ($t in @(
 # 只能连整个发行版一起删（tag 会留着，代码不受影响）。历史版本存在 GitHub 那边。
 if ($Prune) {
     Write-Host '  Gitee 清理旧版本（只留最近 2 版）...' -ForegroundColor Yellow
-    $all = @(Invoke-RestMethod -Uri "$giteeApi/releases" -TimeoutSec 60) | Sort-Object created_at -Descending
-    $keep = @($all | Select-Object -First 2 | ForEach-Object { $_.tag_name }) + $Version
-    foreach ($r in $all) {
+    $all = @(Invoke-RestMethod -Uri "$giteeApi/releases" -TimeoutSec 60)
+    # 按 tag 里的版本号排，不依赖接口给的 created_at：
+    # 那个字段在脚本里当排序键不可靠（曾出现过排序没生效，于是“前两个”取到的是最老的两个，
+    # 把真正该留的删了）。从 tag 里算版本号是确定的。
+    $sorted = @($all | Sort-Object -Property @{
+            Expression = {
+                $m = [regex]::Match($_.tag_name, '(\d+)\.(\d+)\.(\d+)')
+                if ($m.Success) {
+                    [int]$m.Groups[1].Value * 1000000 + [int]$m.Groups[2].Value * 1000 + [int]$m.Groups[3].Value
+                } else { -1 }
+            }
+        } -Descending)
+    $keep = @($sorted | Select-Object -First 2 | ForEach-Object { $_.tag_name }) + $Version
+    Write-Host "    保留: $($keep -join ', ')" -ForegroundColor DarkGray
+    foreach ($r in $sorted) {
         if ($keep -contains $r.tag_name) { continue }
         try {
             Invoke-RestMethod -Method Delete -Uri "$giteeApi/releases/$($r.id)?access_token=$giteeToken" -TimeoutSec 60 | Out-Null
