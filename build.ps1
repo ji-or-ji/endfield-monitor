@@ -271,18 +271,23 @@ if ($Prune) {
     # 手写“取版本最高的两个”，不用 Sort-Object：
     # 在这台机器上，管道里的排序/筛选对这些对象的属性不可靠（会静默失效，
     # 结果就是取到最老的两个、反而删掉真正该留的）。纯循环 + 数值比较是确定的。
+    # 把本次版本也放进候选：清理发生在建发行版之前，它此时还不在接口返回里。
+    # 但**不能**在算完“最高两版”之后再另并本次版本——那等于留三版。
+    $candidates = @()
+    foreach ($r in $all) { $candidates += [string]$r.tag_name }
+    if ($candidates -notcontains $Version) { $candidates += $Version }
     $best1 = -1; $best2 = -1; $tag1 = ''; $tag2 = ''
-    foreach ($r in $all) {
-        $m = [regex]::Match([string]$r.tag_name, '(\d+)\.(\d+)\.(\d+)')
+    foreach ($t in $candidates) {
+        $m = [regex]::Match($t, '(\d+)\.(\d+)\.(\d+)')
         if (-not $m.Success) { continue }
         $s = [int]$m.Groups[1].Value * 1000000 + [int]$m.Groups[2].Value * 1000 + [int]$m.Groups[3].Value
         if ($s -gt $best1) {
-            $best2 = $best1; $tag2 = $tag1; $best1 = $s; $tag1 = [string]$r.tag_name
-        } elseif ($s -gt $best2) {
-            $best2 = $s; $tag2 = [string]$r.tag_name
+            $best2 = $best1; $tag2 = $tag1; $best1 = $s; $tag1 = $t
+        } elseif ($s -gt $best2 -and $s -ne $best1) {
+            $best2 = $s; $tag2 = $t
         }
     }
-    $keep = @($tag1, $tag2, $Version) | Where-Object { $_ -ne '' }
+    $keep = @($tag1, $tag2) | Where-Object { $_ -ne '' } | Select-Object -Unique
     Write-Host "    保留: $($keep -join ', ')" -ForegroundColor DarkGray
     foreach ($r in $all) {
         $tag = [string]$r.tag_name
