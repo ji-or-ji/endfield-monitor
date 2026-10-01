@@ -61,11 +61,8 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] public partial string SourceText { get; set; } = "连接中…";
     [ObservableProperty] public partial string TargetText { get; set; } = "当前监控目标";
 
-    /// <summary>主页面左下角显示的设备名：优先用设备记录里的名称，没记录就退回主机名。</summary>
+    /// <summary>主页面左下角第一行：设备名，后面跟描述（有的话用 · 隔开）。</summary>
     [ObservableProperty] public partial string CurrentDeviceName { get; set; } = "-";
-
-    /// <summary>同一块的第二行：设备描述。没记录或没写就是空。</summary>
-    [ObservableProperty] public partial string CurrentDeviceDesc { get; set; } = "-";
 
     /// <summary>被控设备名（设备页左半边那行大字）。</summary>
     [ObservableProperty] public partial string DeviceNameText { get; set; } = "-";
@@ -323,8 +320,9 @@ public partial class MainViewModel : ViewModelBase
             var endpoint = AppConfig.NormalizeServer(_config.Server);
             var rec = _config.Devices.Find(d =>
                 string.Equals(d.Endpoint, endpoint, StringComparison.OrdinalIgnoreCase));
-            CurrentDeviceName = rec is not null ? rec.Label : (s.Server.Host ?? "服务器");
-            CurrentDeviceDesc = rec is not null ? rec.Desc : "";
+            var label = rec is not null ? rec.Label : (s.Server.Host ?? "服务器");
+            var desc = rec is not null ? rec.Desc : "";
+            CurrentDeviceName = desc.Length > 0 ? label + " · " + desc : label;
 
             RebuildDeviceCards();
         }
@@ -667,7 +665,6 @@ public partial class MainViewModel : ViewModelBase
         TargetText = "-";
         DeviceNameText = "-";
         CurrentDeviceName = "-";
-        CurrentDeviceDesc = "-";
         RebuildDeviceCards();
 
         Array.Clear(_cpuHist, 0, _cpuHist.Length);
