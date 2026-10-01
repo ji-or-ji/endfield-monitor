@@ -1,7 +1,9 @@
 # 构建产物
 bin/
 obj/
-publish/
+# .NET 的 publish 输出目录。发行说明也放在这里面，所以只排除其余，RELEASE-*.md 要进仓库
+publish/*
+!publish/RELEASE-*.md
 dist/
 *.user
 
