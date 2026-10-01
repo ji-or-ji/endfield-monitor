@@ -29,7 +29,7 @@
                 </Grid>
 
                 <!-- 外侧白框，内侧黑长条（对着参考图来的） -->
-                <Border Grid.Column="1" Margin="0,8,40,8" VerticalAlignment="Center"
+                <Border Grid.Column="1" Margin="0,8,40,8" Height="150" VerticalAlignment="Center"
                         Background="White" BorderBrush="{StaticResource LineBrush}"
                         BorderThickness="1" CornerRadius="4" BoxShadow="0 2 8 0 #10000000">
                     <Grid ColumnDefinitions="16,*,Auto">
@@ -37,7 +37,7 @@
                         <Border Grid.Column="0" Width="5" Margin="10,12,0,12" CornerRadius="2"
                                 Background="{StaticResource YellowBrush}" />
                         <!-- 内侧黑色长条：左边空出一块（参考图那块留给水印） -->
-                        <Border Grid.Column="1" Margin="28,10,12,10" Background="{StaticResource DarkBrush}"
+                        <Border Grid.Column="1" Margin="28,20,12,20" Background="{StaticResource DarkBrush}"
                                 CornerRadius="3" Padding="16,12">
                             <Grid ColumnDefinitions="Auto,*,Auto">
                                 <!-- 小图标 + 设备名 -->
