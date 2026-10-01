@@ -534,9 +534,7 @@
                                     <TextBlock Text="{Binding LastRefreshText}" FontSize="13" Foreground="{StaticResource TextBrush}" />
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal" Spacing="4">
-                                    <TextBlock Text="{Binding CurrentDeviceDesc}" FontSize="13"
-                                               Foreground="{StaticResource TextBrush}" TextWrapping="NoWrap"
-                                               TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{Binding TargetText}" FontSize="13" Foreground="{StaticResource TextBrush}" />
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <Border Background="#C9C9C4" Padding="16,4">
