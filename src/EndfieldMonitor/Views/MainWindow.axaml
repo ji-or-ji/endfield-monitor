@@ -23,6 +23,7 @@
                                VerticalAlignment="Center" Margin="0,3,0,0"
                                Foreground="{StaticResource TextBrush}" />
                     <Border Width="46" Height="18" CornerRadius="9" VerticalAlignment="Center"
+                            Margin="0,4,0,0"
                             Background="{StaticResource DarkBrush}" />
                 </StackPanel>
 
