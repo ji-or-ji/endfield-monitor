@@ -209,6 +209,40 @@ if (Test-Path $notesPath) {
     Write-Host '没有手写说明，用自动生成的附件清单' -ForegroundColor DarkGray
 }
 
+# 先把版本历史记上，再推代码——这样这一条会跟着同一轮推送上去。
+# 说明取自发行说明的第一个小标题；那个标题太通用时（比如“本版做了什么”）往下取一层。
+$changeLog = Join-Path $repo 'CHANGELOG.md'
+$summary = ''
+if (Test-Path $notesPath) {
+    $h2 = ''; $h3 = ''
+    foreach ($ln in (Get-Content $notesPath)) {
+        $t = $ln.Trim()
+        if ($h2 -eq '' -and $t.StartsWith('## ')) { $h2 = $t.Substring(3).Trim() }
+        elseif ($h3 -eq '' -and $t.StartsWith('### ')) { $h3 = $t.Substring(4).Trim() }
+    }
+    $generic = @('本版做了什么', '这一版', '本版', '说明')
+    $summary = if ($h2 -ne '' -and $generic -notcontains $h2) { $h2 }
+    elseif ($h3 -ne '') { $h3 }
+    elseif ($h2 -ne '') { $h2 }
+    else { '' }
+}
+if ($summary -eq '') { $summary = '（这一版没有写说明）' }
+$entry = "- **$Version** — $summary"
+if (Test-Path $changeLog) {
+    $text = Get-Content $changeLog -Raw
+    if ($text -notmatch [regex]::Escape("**$Version**")) {
+        $text = $text.Replace('<!-- 新的在上面 -->', "<!-- 新的在上面 -->`r`n`r`n$entry")
+        Set-Content $changeLog -Value $text -Encoding utf8NoBOM
+        git -C $repo add -- CHANGELOG.md
+        git -C $repo commit -q -m "版本历史：$Version"
+        Write-Host "  已记入 CHANGELOG.md：$entry" -ForegroundColor DarkGray
+    } else {
+        Write-Host "  CHANGELOG.md 里已有 $Version，不重复" -ForegroundColor DarkGray
+    }
+} else {
+    Write-Host '  没有 CHANGELOG.md，跳过历史记录' -ForegroundColor Yellow
+}
+
 # 先把代码与标签推到两边：发行版指向的提交，远端得先有。
 # 标签一次只推一个显式引用，批量推会被安全策略拦。
 Write-Host '推送代码与标签 ...' -ForegroundColor Cyan
