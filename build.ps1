@@ -230,26 +230,29 @@ foreach ($t in @(
 if ($Prune) {
     Write-Host '  Gitee 清理旧版本（只留最近 2 版）...' -ForegroundColor Yellow
     $all = @(Invoke-RestMethod -Uri "$giteeApi/releases" -TimeoutSec 60)
-    # 按 tag 里的版本号排，不依赖接口给的 created_at：
-    # 那个字段在脚本里当排序键不可靠（曾出现过排序没生效，于是“前两个”取到的是最老的两个，
-    # 把真正该留的删了）。从 tag 里算版本号是确定的。
-    $sorted = @($all | Sort-Object -Property @{
-            Expression = {
-                $m = [regex]::Match($_.tag_name, '(\d+)\.(\d+)\.(\d+)')
-                if ($m.Success) {
-                    [int]$m.Groups[1].Value * 1000000 + [int]$m.Groups[2].Value * 1000 + [int]$m.Groups[3].Value
-                } else { -1 }
-            }
-        } -Descending)
-    $keep = @($sorted | Select-Object -First 2 | ForEach-Object { $_.tag_name }) + $Version
+    # 先把每个发行版的版本分数算出来。特意放在普通循环里算，不塞进排序/筛选的表达式：
+    # 那些表达式在这台机器上取这些对象的属性时行为不可靠（排序会静默失效，
+    # 于是“前两个”拿到最老的两个，反而删掉真正该留的）。
+    $scored = foreach ($r in $all) {
+        $m = [regex]::Match([string]$r.tag_name, '(\d+)\.(\d+)\.(\d+)')
+        [pscustomobject]@{
+            Tag   = [string]$r.tag_name
+            Id    = $r.id
+            Score = if ($m.Success) {
+                [int]$m.Groups[1].Value * 1000000 + [int]$m.Groups[2].Value * 1000 + [int]$m.Groups[3].Value
+            } else { -1 }
+        }
+    }
+    $sorted = @($scored | Sort-Object Score -Descending)
+    $keep = @($sorted | Select-Object -First 2 | ForEach-Object { $_.Tag }) + $Version
     Write-Host "    保留: $($keep -join ', ')" -ForegroundColor DarkGray
     foreach ($r in $sorted) {
-        if ($keep -contains $r.tag_name) { continue }
+        if ($keep -contains $r.Tag) { continue }
         try {
-            Invoke-RestMethod -Method Delete -Uri "$giteeApi/releases/$($r.id)?access_token=$giteeToken" -TimeoutSec 60 | Out-Null
-            Write-Host "    已删 $($r.tag_name)（tag 保留）" -ForegroundColor DarkGray
+            Invoke-RestMethod -Method Delete -Uri "$giteeApi/releases/$($r.Id)?access_token=$giteeToken" -TimeoutSec 60 | Out-Null
+            Write-Host "    已删 $($r.Tag)（tag 保留）" -ForegroundColor DarkGray
         } catch {
-            Write-Host "    删 $($r.tag_name) 失败：$(& $sanitize $_.Exception.Message)" -ForegroundColor Red
+            Write-Host "    删 $($r.Tag) 失败：$(& $sanitize $_.Exception.Message)" -ForegroundColor Red
         }
     }
 }
