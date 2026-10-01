@@ -64,6 +64,9 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>主页面左下角显示的设备名：优先用设备记录里的名称，没记录就退回主机名。</summary>
     [ObservableProperty] public partial string CurrentDeviceName { get; set; } = "-";
 
+    /// <summary>同一块的第二行：设备描述。没记录或没写就是空。</summary>
+    [ObservableProperty] public partial string CurrentDeviceDesc { get; set; } = "-";
+
     /// <summary>被控设备名（设备页左半边那行大字）。</summary>
     [ObservableProperty] public partial string DeviceNameText { get; set; } = "-";
     [ObservableProperty] public partial bool IsLive { get; set; }
@@ -321,6 +324,7 @@ public partial class MainViewModel : ViewModelBase
             var rec = _config.Devices.Find(d =>
                 string.Equals(d.Endpoint, endpoint, StringComparison.OrdinalIgnoreCase));
             CurrentDeviceName = rec is not null ? rec.Label : (s.Server.Host ?? "服务器");
+            CurrentDeviceDesc = rec is not null ? rec.Desc : "";
 
             RebuildDeviceCards();
         }
@@ -663,6 +667,7 @@ public partial class MainViewModel : ViewModelBase
         TargetText = "-";
         DeviceNameText = "-";
         CurrentDeviceName = "-";
+        CurrentDeviceDesc = "-";
         RebuildDeviceCards();
 
         Array.Clear(_cpuHist, 0, _cpuHist.Length);
