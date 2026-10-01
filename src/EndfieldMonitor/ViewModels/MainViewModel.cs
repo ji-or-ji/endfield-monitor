@@ -818,6 +818,13 @@ public partial class MainViewModel : ViewModelBase
         _downloaded = dir;
         UpdateReady = true;
         UpdateText = $"新版本 {info.Tag} 已下载好。点「立即更新」会关闭程序、替换文件并自动重启。";
+
+        // ENF_AUTO_APPLY=1 时不等点击，下完直接换。
+        // 给「全自动更新」留的口子，也是自动化测试替换那一段的入口。
+        if (Environment.GetEnvironmentVariable("ENF_AUTO_APPLY") == "1")
+        {
+            ApplyUpdate();
+        }
     }
 
     /// <summary>把下好的新版换上去：写一段替换脚本、启动它，然后本程序退出。</summary>
