@@ -66,6 +66,9 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] public partial bool IsPerfPage { get; set; }
     [ObservableProperty] public partial bool IsDetailOpen { get; set; }
     [ObservableProperty] public partial bool IsSettingsOpen { get; set; }
+
+    /// <summary>跨设备监控总览（点底栏「切换被控」进来）。</summary>
+    [ObservableProperty] public partial bool IsDeviceOverviewOpen { get; set; }
     [ObservableProperty] public partial string EditServer { get; set; } = "";
     [ObservableProperty] public partial string EditToken { get; set; } = "";
 
@@ -686,6 +689,10 @@ public partial class MainViewModel : ViewModelBase
     }
 
     public void CloseSettings() => IsSettingsOpen = false;
+
+    public void OpenDeviceOverview() => IsDeviceOverviewOpen = true;
+
+    public void CloseDeviceOverview() => IsDeviceOverviewOpen = false;
 
     public void SaveSettings()
     {

@@ -53,6 +53,22 @@ public partial class MainWindow : Window
             };
         }
 
+        // ---- 跨设备监控总览 ----
+        if (this.FindControl<Button>("SwitchDeviceButton") is { } switchDevice)
+            switchDevice.Click += (_, _) => (DataContext as MainViewModel)?.OpenDeviceOverview();
+
+        if (this.FindControl<Button>("DeviceOverviewCloseButton") is { } deviceOverviewClose)
+            deviceOverviewClose.Click += (_, _) => (DataContext as MainViewModel)?.CloseDeviceOverview();
+
+        if (this.FindControl<Border>("DeviceOverviewOverlay") is { } deviceOverview)
+        {
+            deviceOverview.PointerPressed += (s, e) =>
+            {
+                if (ReferenceEquals(e.Source, deviceOverview))
+                    (DataContext as MainViewModel)?.CloseDeviceOverview();
+            };
+        }
+
         // ---- 型号详情 ----
         if (this.FindControl<Button>("DetailCloseButton") is { } detailClose)
             detailClose.Click += (_, _) => (DataContext as MainViewModel)?.CloseDetail();
@@ -100,6 +116,7 @@ public partial class MainWindow : Window
         {
             if (Environment.GetEnvironmentVariable("ENF_PAGE") == "perf") vm.GoPerf();
             if (Environment.GetEnvironmentVariable("ENF_SETTINGS") == "1") vm.OpenSettings();
+            if (Environment.GetEnvironmentVariable("ENF_DEVOVERVIEW") == "1") vm.OpenDeviceOverview();
 
             // 开发用：ENF_DETAIL=<设备 Key> 打开某个设备的详情面板（等首帧数据到了再开）
             string? detailKey = Environment.GetEnvironmentVariable("ENF_DETAIL");
