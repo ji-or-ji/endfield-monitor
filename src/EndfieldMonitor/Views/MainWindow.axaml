@@ -20,7 +20,7 @@
                             VerticalAlignment="Center" Margin="40,0,24,0">
                     <TextBlock Text="{Binding Name}" FontSize="28" LetterSpacing="1"
                                VerticalAlignment="Center" Foreground="{StaticResource TextBrush}" />
-                    <Border Width="86" Height="34" CornerRadius="17" VerticalAlignment="Center"
+                    <Border Width="58" Height="22" CornerRadius="11" VerticalAlignment="Center"
                             Background="{StaticResource DarkBrush}" />
                 </StackPanel>
 
