@@ -31,6 +31,7 @@
                 <!-- 外侧白框，内侧黑长条（对着参考图来的）。整张卡可点：点了切被控并回主页 -->
                 <Border Grid.Column="1" Margin="0,8,40,8" Height="150" VerticalAlignment="Center"
                         Cursor="Hand" PointerPressed="OnDeviceCardPressed"
+                        Classes="card" Classes.dim="{Binding !Reachable}"
                         Background="White" BorderBrush="{StaticResource LineBrush}"
                         BorderThickness="1" CornerRadius="4" BoxShadow="0 2 8 0 #10000000">
                     <Grid ColumnDefinitions="16,*,Auto">
@@ -122,6 +123,18 @@
             <Setter Property="Stretch" Value="Uniform" />
             <Setter Property="HorizontalAlignment" Value="Center" />
             <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <!-- 卡片：连不上时缓动置灰。过渡挂在元素上，样式只负责把 Opacity 压下去，
+             于是变化是渐进的面不是一下子跳过去 -->
+        <Style Selector="Border.card">
+            <Setter Property="Transitions">
+                <Transitions>
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.7" Easing="CubicEaseOut" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Border.card.dim">
+            <Setter Property="Opacity" Value="0.3" />
         </Style>
         <Style Selector="Path.ico">
             <Setter Property="Width" Value="20" />
