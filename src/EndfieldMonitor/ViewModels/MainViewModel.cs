@@ -64,11 +64,11 @@ public partial class MainViewModel : ViewModelBase
 
     [ObservableProperty] public partial bool IsOverviewPage { get; set; } = true;
     [ObservableProperty] public partial bool IsPerfPage { get; set; }
+
+    /// <summary>页三：跨设备监控总览（底栏「切换被控」进来）。</summary>
+    [ObservableProperty] public partial bool IsDevicePage { get; set; }
     [ObservableProperty] public partial bool IsDetailOpen { get; set; }
     [ObservableProperty] public partial bool IsSettingsOpen { get; set; }
-
-    /// <summary>跨设备监控总览（点底栏「切换被控」进来）。</summary>
-    [ObservableProperty] public partial bool IsDeviceOverviewOpen { get; set; }
     [ObservableProperty] public partial string EditServer { get; set; } = "";
     [ObservableProperty] public partial string EditToken { get; set; } = "";
 
@@ -658,8 +658,9 @@ public partial class MainViewModel : ViewModelBase
     }
 
     // ================= 交互 =================
-    public void GoOverview() { IsOverviewPage = true; IsPerfPage = false; }
-    public void GoPerf() { IsOverviewPage = false; IsPerfPage = true; }
+    public void GoOverview() { IsOverviewPage = true; IsPerfPage = false; IsDevicePage = false; }
+    public void GoPerf() { IsOverviewPage = false; IsPerfPage = true; IsDevicePage = false; }
+    public void GoDevicePage() { IsOverviewPage = false; IsPerfPage = false; IsDevicePage = true; }
 
     public void OpenDetail(DeviceRowViewModel d)
     {
@@ -689,10 +690,6 @@ public partial class MainViewModel : ViewModelBase
     }
 
     public void CloseSettings() => IsSettingsOpen = false;
-
-    public void OpenDeviceOverview() => IsDeviceOverviewOpen = true;
-
-    public void CloseDeviceOverview() => IsDeviceOverviewOpen = false;
 
     public void SaveSettings()
     {
