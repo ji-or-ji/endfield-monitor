@@ -66,6 +66,7 @@
                         </Border>
                         <!-- 编辑：白底描边的胶囊，前面一道横杠 -->
                         <Button Grid.Column="2" Margin="4,0,12,0" VerticalAlignment="Center"
+                                Click="OnDeviceEditClick"
                                 Background="White" BorderBrush="#4A4A46" BorderThickness="1"
                                 CornerRadius="17" Padding="12,7">
                             <StackPanel Orientation="Horizontal" Spacing="8">
@@ -533,6 +534,42 @@
                     </Border>
             </Grid>
         </Grid>
+
+        <!-- ============ 编辑设备（点卡片上的「编辑」弹出） ============ -->
+        <Border Name="EditDeviceOverlay" IsVisible="{Binding IsEditDeviceOpen}" Background="#73222220">
+            <Border Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource LineBrush}"
+                    BorderThickness="1" Width="420" Padding="24"
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                    BoxShadow="0 14 44 0 #52000000">
+                <StackPanel Spacing="18">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0" Text="{Binding EditDeviceName}" FontSize="16"
+                                   LetterSpacing="2" Foreground="#4C4C48" VerticalAlignment="Center" />
+                        <Button Grid.Column="1" Classes="round" Name="EditDeviceCloseButton">
+                            <Path Data="M5.2 5.2L18.8 18.8 M18.8 5.2L5.2 18.8"
+                                  Stroke="#85858A" StrokeThickness="3" />
+                        </Button>
+                    </Grid>
+
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="服务器地址" FontSize="13"
+                                   Foreground="{StaticResource TextDimBrush}" />
+                        <TextBox Text="{Binding EditDeviceServer}" PlaceholderText="留空 = 监视本机"
+                                 FontSize="14" />
+                    </StackPanel>
+
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="共享口令" FontSize="13"
+                                   Foreground="{StaticResource TextDimBrush}" />
+                        <TextBox Text="{Binding EditDeviceToken}" PasswordChar="●" FontSize="14" />
+                    </StackPanel>
+
+                    <Button Name="EditDeviceClose2Button" Content="关闭" Padding="24,10"
+                            HorizontalAlignment="Right" Background="{StaticResource Dark2Brush}"
+                            Foreground="White" CornerRadius="6" />
+                </StackPanel>
+            </Border>
+        </Border>
 
         <!-- ============ 连接设置覆盖层 ============ -->
         <Border Name="SettingsOverlay" IsVisible="{Binding IsSettingsOpen}" Background="#73222220">

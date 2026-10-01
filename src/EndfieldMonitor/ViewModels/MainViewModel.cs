@@ -74,6 +74,15 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>页四：新建被控（设备页右上角那个图标按钮进来）。</summary>
     [ObservableProperty] public partial bool IsNewDevicePage { get; set; }
 
+    /// <summary>点卡片上的「编辑」弹出的那张卡。</summary>
+    [ObservableProperty] public partial bool IsEditDeviceOpen { get; set; }
+
+    [ObservableProperty] public partial string EditDeviceName { get; set; } = "";
+
+    [ObservableProperty] public partial string EditDeviceServer { get; set; } = "";
+
+    [ObservableProperty] public partial string EditDeviceToken { get; set; } = "";
+
     /// <summary>新建被控页里填的地址与口令。先跟着同一份配置走，以后改成设备列表。</summary>
     [ObservableProperty] public partial string NewDeviceServer { get; set; } = "";
 
@@ -708,6 +717,17 @@ public partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// <summary>点卡片上的「编辑」：弹一张卡。里面放什么等设备列表做完再定，先给名字与两栏。</summary>
+    public void OpenEditDevice(DeviceCardItem item)
+    {
+        EditDeviceName = item.Name;
+        EditDeviceServer = item.Server;
+        EditDeviceToken = item.Token;
+        IsEditDeviceOpen = true;
+    }
+
+    public void CloseEditDevice() => IsEditDeviceOpen = false;
+
     /// <summary>点左侧某一条：把它设为当前被控并回主页。真正切连接要等设备带上地址。</summary>
     public void SwitchToDevice(DeviceCardItem item)
     {
