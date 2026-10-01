@@ -319,34 +319,29 @@
                         </ScrollViewer>
                     </Grid>
 
-                    <!-- 底栏 -->
+                    <!-- 底栏：左两个按钮（切换被控 + 占位），中间圆形刷新，右侧留给待加的两个黑按钮 -->
                     <Border Grid.Row="1" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource LineBrush}"
                             BorderThickness="1" Padding="18,14" BoxShadow="0 2 8 0 #10000000">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <StackPanel Grid.Column="0" Spacing="8" VerticalAlignment="Center">
-                                <StackPanel Orientation="Horizontal" Spacing="4">
-                                    <TextBlock Text="上次数据刷新：" FontSize="13" Foreground="{StaticResource TextBrush}" />
-                                    <TextBlock Text="{Binding LastRefreshText}" FontSize="13" Foreground="{StaticResource TextBrush}" />
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Spacing="4">
-                                    <TextBlock Text="{Binding TargetText}" FontSize="13" Foreground="{StaticResource TextBrush}" />
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,0">
-                                    <Border Background="#C9C9C4" Padding="16,4">
-                                        <TextBlock Text="{Binding TagCpu}" FontSize="12" />
-                                    </Border>
-                                    <Border Background="#C9C9C4" Padding="16,4">
-                                        <TextBlock Text="{Binding TagMem}" FontSize="12" />
-                                    </Border>
-                                    <Border Background="#C9C9C4" Padding="16,4">
-                                        <TextBlock Text="{Binding TagComp}" FontSize="12" />
-                                    </Border>
-                                </StackPanel>
+                        <Grid ColumnDefinitions="*,Auto,*">
+                            <!-- 左：切换被控；右边那个内容还没定，先放个空同尺寸按钮占位 -->
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10"
+                                        HorizontalAlignment="Left" VerticalAlignment="Center">
+                                <Button Name="SwitchDeviceButton" Background="{StaticResource Dark2Brush}"
+                                        Foreground="White" CornerRadius="6" Padding="22,12">
+                                    <TextBlock Text="切换被控" FontSize="15" LetterSpacing="1" />
+                                </Button>
+                                <Button Name="BarPlaceholderButton" Background="{StaticResource Dark2Brush}"
+                                        CornerRadius="6" Padding="22,12" MinWidth="104" />
                             </StackPanel>
 
-                            <Button Grid.Column="1" Name="RefreshButton" Background="{StaticResource Dark2Brush}"
-                                    Foreground="White" CornerRadius="18" Padding="30,16">
-                                <TextBlock Text="刷新数据" FontSize="18" LetterSpacing="2" />
+                            <!-- 中：刷新，圆形小按钮（同顶栏那类） -->
+                            <Button Grid.Column="1" Classes="round" Name="RefreshButton"
+                                    Width="46" Height="46" CornerRadius="23"
+                                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                                    ToolTip.Tip="刷新数据">
+                                <Path Data="M23 4v6h-6 M1 20v-6h6 M3.51 9a9 9 0 0 1 14.85-3.36L23 10 M1 14l4.64 4.36A9 9 0 0 0 20.49 15"
+                                      Stroke="#75756F" StrokeThickness="2" Width="22" Height="22" Stretch="Uniform"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center" />
                             </Button>
                         </Grid>
                     </Border>
