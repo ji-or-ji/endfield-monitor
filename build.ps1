@@ -12,6 +12,10 @@
       .\build.ps1 -Publish             # 构建并推到 Gitee 发行版（全量附件）
       .\build.ps1 -Version v0.5.0 -Publish
 
+  别忘 -Prune：附件配额只有 1 GB，发几版就会满，上传随即报 400。它删的是发行版
+  （tag 保留），故意做成要手动加——漏加最多是配额慢慢满，误加却会删掉对外可见的旧版本。
+  带了 -Publish 却没带 -Prune 时，脚本会当场提醒一句。
+
   发布需要令牌，从环境变量 GITEE_TOKEN 读（或放在 ~/.gitee-token 里）：
       $env:GITEE_TOKEN = '你的 Gitee 私人令牌'
 
@@ -20,7 +24,7 @@
 param(
     [string]$Version,
     [switch]$Publish,
-    [switch]$Prune,
+    [switch]$Prune,        # 发布时顺带清掉 Gitee 上旧的发行版（只留最近两版）；要手动加，防误删
     [switch]$GitHubAssets
 )
 
@@ -59,6 +63,12 @@ if (-not $Version) {
 }
 if ($Version -notmatch '^v') { $Version = "v$Version" }
 $verNum = $Version.TrimStart('v')   # 程序里嵌的版本号不带 v
+
+# -Publish 却没带 -Prune：当场提醒一句。配额满了再回头查，很难想到是“忘了清旧版”。
+if ($Publish -and -not $Prune) {
+    Write-Host '提示：这次带了 -Publish 却没带 -Prune，Gitee 上的旧发行版不会清理。' -ForegroundColor Yellow
+    Write-Host '      附件配额只有 1 GB，发几版就会满（上传随即报 400）；正常发布建议加上 -Prune。' -ForegroundColor Yellow
+}
 
 Write-Host "构建 $Version -> $dist" -ForegroundColor Cyan
 
