@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/shirou/gopsutil/v4/cpu"
@@ -60,11 +61,39 @@ func collectStatic() staticInfo {
 func fallbackNetwork() (string, float64) {
 	if ifs, err := gnet.Interfaces(); err == nil {
 		for _, itf := range ifs {
-			if len(itf.Addrs) == 0 || strings.HasPrefix(itf.Name, "Loopback") {
+			if len(itf.Addrs) == 0 || isLoopbackIface(itf) {
 				continue
 			}
-			return itf.Name, 1000
+			return itf.Name, linkSpeed(itf.Name)
 		}
 	}
 	return "网络", 1000
+}
+
+// linkSpeed 取网卡链路速率（Mbps）。Linux 读 /sys/class/net/<iface>/speed；
+// 读不到或是别的系统就按 1000 估算。Wi-Fi 重协商后由 netLoop 重新探测。
+func linkSpeed(name string) float64 {
+	if runtime.GOOS == "linux" {
+		if b, err := os.ReadFile("/sys/class/net/" + name + "/speed"); err == nil {
+			if v, err := strconv.Atoi(strings.TrimSpace(string(b))); err == nil && v > 0 {
+				return float64(v)
+			}
+		}
+	}
+	return 1000
+}
+
+// isLoopbackIface 判一个接口是不是回环。不能只看名字：Windows 叫 "Loopback…"，
+// Linux 叫 "lo"，BSD 叫 "lo0"，光认 "Loopback" 前缀在 Linux 上会漏掉 lo，
+// 回环就被当成主网卡。优先认 Flags 里的 loopback 标志，名字只作兜底。
+func isLoopbackIface(itf gnet.InterfaceStat) bool {
+	if itf.Name == "lo" || itf.Name == "lo0" || strings.HasPrefix(itf.Name, "Loopback") {
+		return true
+	}
+	for _, f := range itf.Flags {
+		if strings.EqualFold(f, "loopback") {
+			return true
+		}
+	}
+	return false
 }

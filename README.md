@@ -19,7 +19,7 @@ https://gitee.com/ji-or-ji/endfield-monitor · https://github.com/ji-or-ji/endfi
 设置：服务器地址与共享口令，另有中心点云档位、批量绘制、环上显示具体数值三项可调。
 
 被监视的那一端以 **Windows 能力最全**——内存条、磁盘介质、显卡、计划任务这些依赖 WMI 的项都有；
-也有 Linux 版，同一份代码交叉编译，但**尚未在真机验证**，上述依赖 WMI 的项会留空。
+也有 Linux 版，同一份代码交叉编译，**已在虚拟机（Linux Mint）验证**，上述依赖 WMI 的项会留空。
 
 > 界面设计（配色、电量环、版式、动效语言）参考并致敬 **zmd-manager / 终末地管理器**：
 > https://github.com/QinAnze/zmd-manager
