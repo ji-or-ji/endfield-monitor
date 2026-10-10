@@ -33,7 +33,8 @@ func TestExecProgram(t *testing.T) {
 		`/usr/bin/firefox %u`:               "/usr/bin/firefox",
 		`"my app" %U`:                       "my app",
 		`/opt/Foo/foo --flag %i`:            "/opt/Foo/foo",
-		`env GDK_BACKEND=x11 /usr/bin/x %F`: "env", // 包装类命令只能匹配到 env，属已知局限
+		`env GDK_BACKEND=x11 /usr/bin/x %F`: "/usr/bin/x", // env 包装已穿透，拿到真正的程序
+		`env /usr/bin/thing`:                "/usr/bin/thing",
 	}
 	for in, want := range cases {
 		if got := execProgram(in); got != want {

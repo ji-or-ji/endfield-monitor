@@ -292,7 +292,13 @@
                                                     <Grid ColumnDefinitions="*,130,150">
                                                         <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12">
                                                             <Border Width="38" Height="38" Background="{StaticResource Dark2Brush}">
-                                                                <Path Classes="ico" Data="{Binding Icon}" Stroke="White" StrokeThickness="2" />
+                                                                <Panel>
+                                                                    <!-- 增强版能给真图标；取不到（普通版 / 无图标）就回退到本地字形 -->
+                                                                    <Path Classes="ico" Data="{Binding Icon}" Stroke="White" StrokeThickness="2"
+                                                                          IsVisible="{Binding !HasIconImage}" />
+                                                                    <Image Source="{Binding IconImage}" Stretch="Uniform" Margin="3"
+                                                                           IsVisible="{Binding HasIconImage}" />
+                                                                </Panel>
                                                             </Border>
                                                             <StackPanel VerticalAlignment="Center">
                                                                 <TextBlock Text="{Binding Name}" FontSize="14" Foreground="#454540" />

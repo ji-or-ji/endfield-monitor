@@ -37,18 +37,103 @@ func appIcon(pid int32, exe string) (data []byte, mime string, err error) {
 		}
 	}
 
-	if e := matchDesktopEntry(entries, exe); e != nil {
-		if data, mime, ok := readIcon(e.Icon); ok {
-			return data, mime, nil
+	// 名字候选：脚本型应用（cinnamon-settings 之类，exe 其实是 python）的“真身”
+	// 在 argv 里而不在 exe 上，得按 argv[0] 去认，否则全被认成解释器。
+	names := programNames(pid, exe)
+
+	for _, n := range names {
+		if e := matchDesktopEntry(entries, n); e != nil {
+			if data, mime, ok := readIcon(e.Icon); ok {
+				return data, mime, nil
+			}
 		}
 	}
 
-	// 兜底：很多 .desktop 的 Icon= 名字就等于可执行名，直接拿它当图标名猜一次
-	guess := strings.TrimSuffix(filepath.Base(exe), filepath.Ext(exe))
-	if data, mime, ok := readIcon(guess); ok {
-		return data, mime, nil
+	// 兜底：很多 .desktop 的 Icon= 名字就等于程序名，直接拿候选名当图标名猜一次
+	for _, n := range names {
+		if data, mime, ok := readIcon(n); ok {
+			return data, mime, nil
+		}
+	}
+	// 老规矩的最后一猜：按去掉后缀的可执行名当图标名。
+	// 解释器跳过——它只会把 Python 一类的图标塞给所有脚本应用。
+	if !isInterpreter(filepath.Base(exe)) {
+		if guess := strings.TrimSuffix(filepath.Base(exe), filepath.Ext(exe)); guess != "" {
+			if data, mime, ok := readIcon(guess); ok {
+				return data, mime, nil
+			}
+		}
 	}
 	return nil, "", errors.New("没找到图标")
+}
+
+// procArgv 读 /proc/<pid>/cmdline（NUL 分隔的 argv）。读不到就返回空。
+func procArgv(pid int32) []string {
+	data, err := os.ReadFile(filepath.Join("/proc", strconv.Itoa(int(pid)), "cmdline"))
+	if err != nil || len(data) == 0 {
+		return nil
+	}
+	var out []string
+	for _, part := range strings.Split(string(data), "\x00") {
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
+}
+
+// programNames 列出认图标时的名字候选，越靠前越可信。
+// 脚本型应用（cinnamon-settings 的 exe 是 python3.12）的“真身”在 argv 里，
+// 只认 exe 会把它们一股脑认成解释器（于是全顶着 Python 的图标）。
+func programNames(pid int32, exe string) []string {
+	var out []string
+	seen := map[string]bool{}
+	add := func(p string) {
+		if p == "" {
+			return
+		}
+		b := strings.TrimSuffix(filepath.Base(p), " (deleted)")
+		if b == "" || b == "." || b == "/" || seen[b] {
+			return
+		}
+		// 解释器不是应用本身，别拿它去认：否则所有脚本应用都会顶解释器的图标。
+		// （脚本走 shebang 时 argv[0] 就是解释器，正好也在这里被挡掉。）
+		if isInterpreter(b) {
+			return
+		}
+		seen[b] = true
+		out = append(out, b)
+	}
+
+	// argv 里每个不是开关的 token 都当候选：正常应用 argv[0] 就是它自己；
+	// 脚本应用（cinnamon-settings、blueman-applet 之类）的真身则藏在 argv 里。
+	for _, a := range procArgv(pid) {
+		if strings.HasPrefix(a, "-") {
+			continue // 开关不是程序名
+		}
+		add(a)
+	}
+	add(exe) // 兜底：按可执行文件本身
+	return out
+}
+
+// iconKey 是图标缓存的键。不能只看 exe：脚本型应用共用解释器那个 exe，
+// 各自的图标却不一样，得把 argv 里的主名也算进去，否则它们会共用一份图标。
+func iconKey(pid int32, exe string) string {
+	if names := programNames(pid, exe); len(names) > 0 {
+		return exe + "\x00" + names[0]
+	}
+	return exe
+}
+
+// isInterpreter 判断这名字是不是“跑别人代码”的解释器/运行时。
+func isInterpreter(base string) bool {
+	switch base {
+	case "node", "nodejs", "deno", "bun", "java", "javaw", "ruby", "perl", "php",
+		"sh", "bash", "dash", "zsh", "fish", "env", "wine", "mono":
+		return true
+	}
+	return strings.HasPrefix(base, "python") || strings.HasPrefix(base, "pypy")
 }
 
 // readIcon 把 Icon= 的值变成图标字节：绝对路径就直接读，

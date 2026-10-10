@@ -5,8 +5,10 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.Sockets;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using EndfieldMonitor.Models;
@@ -291,6 +293,8 @@ public partial class MainViewModel : ViewModelBase
     private void ApplySnapshot(Snapshot s)
     {
         _hasData = true;
+        // 只有对面声明了取图标的能力才去取；普通版没这接口，别空打 404
+        _iconCapable = s.Capabilities.Any(c => string.Equals(c, "app.icon", StringComparison.OrdinalIgnoreCase));
         _sysCpu = s.Cpu.Util;
         _memPct = s.Mem.Pct;
         _cpuFreq = s.Cpu.Freq;
@@ -364,6 +368,8 @@ public partial class MainViewModel : ViewModelBase
             {
                 Apps.Add(new AppRowViewModel
                 {
+                    Key = IconKey(p.Exe, p.Name, p.Pid),
+                    Pid = p.Pid,
                     Name = string.IsNullOrWhiteSpace(p.Name) ? "?" : p.Name!,
                     // 副标题只留给窗口标题；没有就不占位，别把进程名重复一遍
                     Sub = p.Title ?? "",
@@ -397,6 +403,96 @@ public partial class MainViewModel : ViewModelBase
         {
             a.CpuBar = Math.Clamp(a.Cpu / maxCpu * 100, 2, 100);
             a.MemBar = Math.Clamp(a.Mem / maxMem * 100, 2, 100);
+        }
+
+        // 应用行每轮都在，顺手把还缺的真图标补上（命中缓存就秒过）
+        EnsureIcons();
+    }
+
+    // ================= 应用图标（只有增强版能给） =================
+    // 图标按「连接目标 + exe」缓存：同一个 exe 的图标不会变，换设备也不会串台。
+    // 取不到（普通版没接口、进程没图标、请求失败）也记一笔，短时间里不反复敲。
+
+    private readonly Dictionary<string, Bitmap> _iconCache = new();
+    private readonly Dictionary<string, DateTime> _iconMiss = new();
+    private readonly HashSet<string> _iconBusy = new();
+    private readonly SemaphoreSlim _iconGate = new(4);
+    private bool _iconCapable;
+    private const int IconFailRetrySeconds = 60;
+
+    /// <summary>图标缓存键：连接目标 + 进程名 + exe。
+    /// 带上进程名是因为脚本型应用共用解释器那个 exe（python 之类），各自的图标却不同。</summary>
+    private string IconKey(string? exe, string? name, int pid) =>
+        _client.BaseUrl + "|" + (name ?? "") + "|" + (string.IsNullOrWhiteSpace(exe) ? "#" + pid : exe);
+
+    /// <summary>给当前应用列表补齐真图标。对面不声明能力、或已经取过/正在取的就跳过。</summary>
+    private void EnsureIcons()
+    {
+        if (!_iconCapable || Apps.Count == 0) return;
+        string endpoint = _client.BaseUrl, token = _client.Token;
+        foreach (var row in Apps) KickIcon(row, endpoint, token);
+    }
+
+    private void KickIcon(AppRowViewModel row, string endpoint, string token)
+    {
+        if (row.Pid <= 0 || row.Key.Length == 0) return;
+
+        if (_iconCache.TryGetValue(row.Key, out var cached)) { row.IconImage = cached; return; }
+
+        // 取不到的先搁一会儿，别每秒拿同一个没图标的进程去敲门
+        if (_iconMiss.TryGetValue(row.Key, out var at) &&
+            (DateTime.Now - at).TotalSeconds < IconFailRetrySeconds) return;
+
+        if (!_iconBusy.Add(row.Key)) return;   // 同一个键已经有请求在飞
+        _ = FetchIconAsync(row.Key, endpoint, token, row.Pid);
+    }
+
+    private async Task FetchIconAsync(string key, string endpoint, string token, int pid)
+    {
+        Bitmap? bmp = null;
+        await _iconGate.WaitAsync();
+        try
+        {
+            var got = await _client.FetchIconAsync(endpoint, token, pid);
+            if (got is { } res) bmp = DecodeIcon(res.Data, res.Mime);
+        }
+        catch
+        {
+            bmp = null;   // 请求失败、图片解不出来，都当没有图标
+        }
+        finally
+        {
+            _iconGate.Release();
+            _iconBusy.Remove(key);
+        }
+
+        if (bmp is not null)
+        {
+            _iconCache[key] = bmp;
+            // 行可能已经重建过，按 Key 找回当前的那几行贴上
+            foreach (var a in Apps)
+                if (a.Key == key) a.IconImage = bmp;
+        }
+        else
+        {
+            _iconMiss[key] = DateTime.Now;
+        }
+    }
+
+    /// <summary>按服务端自报的格式解图标：位图直接解，XPM 走自带解码器，
+    /// 矢量（svg）现在还画不了，先返回 null 退回首字。</summary>
+    private static Bitmap? DecodeIcon(byte[] data, string mime)
+    {
+        try
+        {
+            if (mime.Contains("svg", StringComparison.OrdinalIgnoreCase)) return null;
+            if (mime.Contains("xpm", StringComparison.OrdinalIgnoreCase)) return XpmDecoder.TryDecode(data);
+            using var ms = new MemoryStream(data);
+            return new Bitmap(ms);
+        }
+        catch
+        {
+            return null;
         }
     }
 
@@ -847,6 +943,8 @@ public partial class MainViewModel : ViewModelBase
         // 只落盘不够：界面换了、数据仍会从老地址拿。得把新地址交给正在跑的那个客户端
         _client.BaseUrl = "http://" + rec.Endpoint;
         _client.Token = rec.Token;
+        // 图标缓存键里带着地址，换了目标得让应用行重建一次，重新认图标
+        _appSig = "";
     }
 
     private static int ParsePort(string? raw) =>
@@ -925,6 +1023,7 @@ public partial class MainViewModel : ViewModelBase
             // 同上：落盘之外还要真的换掉请求目标
             _client.BaseUrl = "http://" + item.Server;
             _client.Token = item.Token;
+            _appSig = "";   // 换目标后强制重建应用行，让图标按新地址重新认
         }
 
         DeviceNameText = item.Name;
@@ -1425,6 +1524,10 @@ public partial class MainViewModel : ViewModelBase
 
 public partial class AppRowViewModel : ObservableObject
 {
+    /// <summary>图标缓存键。取图是异步的，回来时靠它找回当前那一行。</summary>
+    public string Key { get; init; } = "";
+    public int Pid { get; init; }
+
     [ObservableProperty] public partial string Name { get; set; } = "";
     [ObservableProperty] public partial string Sub { get; set; } = "";
     [ObservableProperty] public partial bool HasTitle { get; set; }
@@ -1432,6 +1535,13 @@ public partial class AppRowViewModel : ObservableObject
     [ObservableProperty] public partial bool HasExe { get; set; }
     [ObservableProperty] public partial string Tip { get; set; } = "";
     [ObservableProperty] public partial Geometry Icon { get; set; } = Geometry.Parse("");
+
+    /// <summary>增强版取回的真图标。为空时界面回退到本地字形（Icon）。</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasIconImage))]
+    public partial Bitmap? IconImage { get; set; }
+
+    public bool HasIconImage => IconImage is not null;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CpuText))]

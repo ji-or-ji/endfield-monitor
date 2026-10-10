@@ -67,11 +67,22 @@ func parseDesktopEntry(data string) desktopEntry {
 	return e
 }
 
-// execProgram 取 Exec= 里第一个真正的词，也就是被启动的那个程序。
-// 顺带剥掉 %U %f %i 这类字段码。
+// execProgram 取 Exec= 里真正被启动的那个程序：跳过字段码，也穿透 `env VAR=val prog` 这层包装。
+// 为什么要管 env：cinnamon-settings 的 Exec 就写成
+// `env WEBKIT_DISABLE_COMPOSITING_MODE=1 cinnamon-settings`，
+// 不穿透的话拿到的程序名会是 "env"，跟谁都对不上。
 func execProgram(exec string) string {
-	for _, tok := range splitExec(exec) {
+	toks := splitExec(exec)
+	for i := 0; i < len(toks); i++ {
+		tok := toks[i]
 		if tok == "" || strings.HasPrefix(tok, "%") {
+			continue
+		}
+		if filepath.Base(tok) == "env" {
+			// 跳过 env 之后跟着的 VAR=val，再继续找真正的程序
+			for i+1 < len(toks) && strings.Contains(toks[i+1], "=") && !strings.HasPrefix(toks[i+1], "-") {
+				i++
+			}
 			continue
 		}
 		return tok
@@ -233,9 +244,13 @@ func iconThemeDirs() []string {
 	return append(out, "/usr/share/pixmaps")
 }
 
-// iconExts 是探图标文件时尝试的后缀，顺序即优先级。
+// iconExts 是探查图标文件时尝试的全部后缀，顺序即优先级。
 // 这个顺序与规范伪代码里的一致（for extension in ("png", "svg", "xpm")）。
 var iconExts = []string{".png", ".svg", ".xpm"}
+
+// rasterExts 是客户端解码得了的格式。采集端把图标文件原样转发给客户端，
+// 客户端只认位图，所以先专门在位图里找一轮，找不到再放宽到 iconExts。
+var rasterExts = []string{".png"}
 
 // iconMime 把后缀映射成 Content-Type。命中的是 SVG 时，返回给客户端的
 // 就不是 PNG 了，所以这个信息必须一路带上去。
@@ -263,32 +278,50 @@ var iconContexts = []string{"apps", ""}
 // findIconFile 在一批图标根目录里按名字找图标文件。
 // 返回命中的路径、它的 Content-Type，以及一路试过的路径（诊断用）。
 //
-// 优先按主题自己的 index.theme 找（规范做法），没有或没命中再退回遍历常见布局。
-// 后者是近似手段，会漏掉 48x48@2/apps 这类非常规目录名。
+// 分两轮：先只在位图（png）里找，找不到再放宽到全部后缀。
+// 这么排是因为采集端把图标文件原样转发给客户端，而客户端只解码得了位图，
+// 矢量（svg/xpm）发过去也是白搭。宁可给一张小一点的 png，也别给一张画不出的 svg。
 func findIconFile(dirs []string, name string) (path, mime string, tried []string, ok bool) {
 	if name == "" {
 		return "", "", nil, false
 	}
-	// 客户端按 38px 显示，45 这一档最合适（规范要求应用至少装 48x48）
+	for _, exts := range [][]string{rasterExts, iconExts} {
+		p, m, t, found := findIconFileEx(dirs, name, exts)
+		tried = append(tried, t...)
+		if found {
+			return p, m, tried, true
+		}
+	}
+	return "", "", tried, false
+}
+
+// findIconFileEx 是单轮查找：只在给定的后缀集合里找。
+// 优先按主题自己的 index.theme 找（规范做法），没有或没命中再退回遍历常见布局。
+// 后者是近似手段，会漏掉 48x48@2/apps 这类非常规目录名。
+func findIconFileEx(dirs []string, name string, exts []string) (path, mime string, tried []string, ok bool) {
+	if name == "" {
+		return "", "", nil, false
+	}
+	// 客户端按 38px 显示，48 这一档最合适（规范要求应用至少装 48x48）
 	const wantSize, wantScale = 48, 1
 	for _, root := range dirs {
 		for _, theme := range iconThemes(root) {
 			base := filepath.Join(root, theme)
 			if sub, hasIndex := themeSubdirs(base); hasIndex {
-				if p, found := lookupByIndex(base, sub, name, wantSize, wantScale, &tried); found {
+				if p, found := lookupByIndex(base, sub, name, wantSize, wantScale, exts, &tried); found {
 					return p, iconMime(p), tried, true
 				}
 			}
 			for _, size := range iconSizes {
 				for _, ctx := range iconContexts {
-					if p, found := probeIconIn(filepath.Join(base, size, ctx), name, &tried); found {
+					if p, found := probeIconIn(filepath.Join(base, size, ctx), name, exts, &tried); found {
 						return p, iconMime(p), tried, true
 					}
 				}
 			}
 		}
 		// 扁平存放的 pixmaps
-		if p, found := probeIconIn(root, name, &tried); found {
+		if p, found := probeIconIn(root, name, exts, &tried); found {
 			return p, iconMime(p), tried, true
 		}
 	}
@@ -296,8 +329,8 @@ func findIconFile(dirs []string, name string) (path, mime string, tried []string
 }
 
 // probeIconIn 在一个目录里按后缀优先级找一个图标，试过的路径记在 tried 里。
-func probeIconIn(dir, name string, tried *[]string) (string, bool) {
-	for _, ext := range iconExts {
+func probeIconIn(dir, name string, exts []string, tried *[]string) (string, bool) {
+	for _, ext := range exts {
 		p := filepath.Join(dir, name+ext)
 		*tried = append(*tried, p)
 		if fileExists(p) {
@@ -434,12 +467,12 @@ func parseIndexTheme(data string) (dirs []iconDir, ok bool) {
 
 // lookupByIndex 按 index.theme 的描述在主题里找一个图标。
 // 两遍：先找尺寸正好合适的目录，再在所有目录里挑尺寸最接近的那个（规范的做法）。
-func lookupByIndex(base string, dirs []iconDir, name string, size, scale int, tried *[]string) (string, bool) {
+func lookupByIndex(base string, dirs []iconDir, name string, size, scale int, exts []string, tried *[]string) (string, bool) {
 	for _, d := range dirs {
 		if !d.matchingSizes(size, scale) {
 			continue
 		}
-		if p, found := probeIconIn(filepath.Join(base, d.Path), name, tried); found {
+		if p, found := probeIconIn(filepath.Join(base, d.Path), name, exts, tried); found {
 			return p, true
 		}
 	}
@@ -447,7 +480,7 @@ func lookupByIndex(base string, dirs []iconDir, name string, size, scale int, tr
 	bestPath := ""
 	bestDist := 0
 	for _, d := range dirs {
-		for _, ext := range iconExts {
+		for _, ext := range exts {
 			p := filepath.Join(base, d.Path, name+ext)
 			*tried = append(*tried, p)
 			if !fileExists(p) {

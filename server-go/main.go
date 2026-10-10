@@ -458,7 +458,9 @@ func handleAppIcon(w http.ResponseWriter, r *http.Request) {
 	if p := lookupProc(pid); p != nil {
 		exe = p.Exe
 	}
-	if data, mime, ok := cacheGet(exe); ok {
+	// 缓存键不只是 exe：脚本型应用共用解释器那个 exe，图标却各不相同
+	key := iconKey(pid, exe)
+	if data, mime, ok := cacheGet(key); ok {
 		writeIcon(w, data, mime)
 		return
 	}
@@ -467,8 +469,8 @@ func handleAppIcon(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 404, map[string]any{"error": err.Error()})
 		return
 	}
-	if exe != "" {
-		cachePut(exe, data, mime)
+	if key != "" {
+		cachePut(key, data, mime)
 	}
 	writeIcon(w, data, mime)
 }

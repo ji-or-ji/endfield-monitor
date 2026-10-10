@@ -15,6 +15,10 @@ import (
 	"golang.org/x/sys/windows"
 )
 
+// iconKey 是图标缓存的键。Windows 的图标就长在 exe 里，按 exe 缓存足够。
+// （Linux 那边不一样：脚本应用共用解释器这个 exe，图标却各不相同，见 icon_linux.go。）
+func iconKey(_ int32, exe string) string { return exe }
+
 // 取某个可执行文件的图标，编码成 PNG。
 //
 // 走 shell 的 SHGetFileInfo 拿 HICON（这就是资源管理器显示的那个图标），
